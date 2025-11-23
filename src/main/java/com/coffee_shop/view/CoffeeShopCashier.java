@@ -147,10 +147,10 @@ public class CoffeeShopCashier {
 		rightBox.setPrefWidth(240);
 		rightBox.getStyleClass().add("stat-card");
 
-		Label totalLabel = new Label("Total: $0.00");
+		Label totalLabel = new Label("Total: Rs0.00");
 		// bind listener for grand total now that totalLabel exists
 		totalLabel.getStyleClass().add("card-data");
-		grandTotal.addListener((obs, oldV, newV) -> totalLabel.setText(String.format("Total: $%.2f", newV.doubleValue())));
+		grandTotal.addListener((obs, oldV, newV) -> totalLabel.setText(String.format("Total: Rs%.2f", newV.doubleValue())));
 
 		Button removeBtn = new Button("Remove Selected");
 		removeBtn.getStyleClass().add("nav-link");
@@ -184,7 +184,7 @@ public class CoffeeShopCashier {
 		};
 
 		// Load menu items from local MySQL database `restaurant.food`
-		// Default XAMPP credentials: user=root, password="" (empty)
+		// Default XAMPP credentials: user=root, password=""
 		try {
 			Class.forName("com.mysql.cj.jdbc.Driver");
 			try (java.sql.Connection conn = java.sql.DriverManager.getConnection(
@@ -196,7 +196,7 @@ public class CoffeeShopCashier {
 						int foodId = rs.getInt("id");
 						String name = rs.getString("fName");
 						double price = rs.getDouble("fPrice");
-						Button itemBtn = new Button(String.format("%s - $%.2f", name, price));
+						Button itemBtn = new Button(String.format("%s - Rs%.2f", name, price));
 						itemBtn.setMaxWidth(Double.MAX_VALUE);
 						itemBtn.getStyleClass().add("nav-link");
 						final int fId = foodId;
@@ -256,8 +256,37 @@ public class CoffeeShopCashier {
 			if (!dir.exists()) dir.mkdirs();
 			// determine sequence number for today's bills
 			int seq = 1;
-			java.io.File[] matches = dir.listFiles((d, name) -> name.startsWith("bill_" + billIdSix + "_") && name.endsWith(".txt"));
-			if (matches != null) seq = matches.length + 1;
+			// Prefer using the bills table to determine the next sequence to avoid relying on files.
+			try {
+				Class.forName("com.mysql.cj.jdbc.Driver");
+				try (java.sql.Connection _conn = java.sql.DriverManager.getConnection(
+						"jdbc:mysql://localhost:3306/restaurant?serverTimezone=UTC", "root", "")) {
+					String q = "SELECT id FROM bills WHERE id LIKE ?";
+					try (java.sql.PreparedStatement ps = _conn.prepareStatement(q)) {
+						ps.setString(1, billIdSix + "_%");
+						try (java.sql.ResultSet rs = ps.executeQuery()) {
+							int max = 0;
+							while (rs.next()) {
+								String id = rs.getString("id");
+								int idx = id.lastIndexOf('_');
+								if (idx >= 0 && idx + 1 < id.length()) {
+									try {
+										int n = Integer.parseInt(id.substring(idx + 1));
+										if (n > max) max = n;
+									} catch (NumberFormatException ex) {
+										// ignore malformed ids
+									}
+								}
+							}
+							seq = max + 1;
+						}
+					}
+				}
+			} catch (Exception ex) {
+				// fallback to file count if DB check fails
+				java.io.File[] matches = dir.listFiles((d, name) -> name.startsWith("bill_" + billIdSix + "_") && name.endsWith(".txt"));
+				if (matches != null) seq = matches.length + 1;
+			}
 			String billIdFull = String.format("%s_%d", billIdSix, seq);
 			java.io.File out = new java.io.File(dir, String.format("bill_%s_%d.txt", billIdSix, seq));
 

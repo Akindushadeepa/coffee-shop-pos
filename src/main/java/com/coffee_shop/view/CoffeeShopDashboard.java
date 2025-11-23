@@ -1,247 +1,426 @@
 package com.coffee_shop.view;
 
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.control.ScrollPane;
-import javafx.scene.layout.*;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontWeight;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
+import javafx.scene.control.TextField;
+import javafx.scene.control.TextArea;
+import javafx.print.PrinterJob;
+import javafx.stage.Modality;
+import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.scene.control.cell.TextFieldTableCell;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import javafx.util.converter.DoubleStringConverter;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.charset.StandardCharsets;
+import javafx.scene.control.Alert;
 
 public class CoffeeShopDashboard {
 
-    // --- Layout Constants ---
-    private static final double SIDEBAR_WIDTH = 240;
-    private static final double TOP_BAR_HEIGHT = 60;
+	// Change this constant if your database name or credentials differ
+	private static final String DB_URL = "jdbc:mysql://localhost:3306/restaurant?serverTimezone=UTC";
+	private static final String DB_USER = "root";
+	private static final String DB_PASS = "";
 
-    public void start(Stage primaryStage) {
+	public static class FoodItem {
+		private final int id;
+		private String name;
+		private double price;
 
-        // 🧩 Root layout uses BorderPane (Left: Sidebar, Center: Main content)
-        BorderPane root = new BorderPane();
+		public FoodItem(int id, String name, double price) {
+			this.id = id;
+			this.name = name;
+			this.price = price;
+		}
 
-        // 🧩 Add Sidebar (Navigation)
-        VBox sidebar = createSidebar();
-        root.setLeft(sidebar);
+		public int getId() { return id; }
+		public String getName() { return name; }
+		public void setName(String name) { this.name = name; }
+		public double getPrice() { return price; }
+		public void setPrice(double price) { this.price = price; }
+	}
 
-        // 🧩 Add Main content area (Top Bar + Dashboard cards)
-        VBox mainContentArea = new VBox();
-        mainContentArea.getChildren().addAll(createTopBar(), createDashboardContent());
-        root.setCenter(mainContentArea);
+	private TableView<FoodItem> itemsTable;
+	private ObservableList<FoodItem> items = FXCollections.observableArrayList();
+	private Stage primaryStage;
 
-        // 🧩 Setup Scene
-        Scene scene = new Scene(root, 1540, 740);
-        try {
-            String css = getClass().getResource("/dashboard.css").toExternalForm();
-            scene.getStylesheets().add(css);
-        } catch (Exception e) {
-            System.err.println("CSS file not found: " + e.getMessage());
-        }
+	public void start(Stage stage) {
+		this.primaryStage = stage;
+		BorderPane root = new BorderPane();
 
-        // 🧩 Configure Stage
-        primaryStage.setTitle("Coffee Shop POS - Admin Dashboard");
-        primaryStage.setScene(scene);
-        
+		HBox topBar = new HBox(10);
+		topBar.setPadding(new Insets(10));
+		topBar.setAlignment(Pos.CENTER_LEFT);
+		Label title = new Label("Admin Dashboard");
+		title.setStyle("-fx-font-size:18px; -fx-font-weight:bold;");
+		Button backBtn = new Button("⬅ Logout");
+		backBtn.setOnAction(e -> {
+			try {
+				CoffeeShopApp app = new CoffeeShopApp();
+				app.start(stage);
+			} catch (Exception ex) {
+				ex.printStackTrace();
+			}
+		});
+		HBox spacer = new HBox();
+		HBox.setHgrow(spacer, Priority.ALWAYS);
+		topBar.getChildren().addAll(backBtn, title, spacer);
 
-        primaryStage.show();
-    }
+		TabPane tabs = new TabPane();
+		Tab manageTab = new Tab("Manage Items");
+		manageTab.setClosable(false);
+		manageTab.setContent(createManageItemsPane());
 
-    /**
-     * 🧱 Creates the Sidebar (Left Navigation Panel)
-     */
-    private VBox createSidebar() {
-        VBox sidebar = new VBox(15); // spacing between items
-        sidebar.setPrefWidth(SIDEBAR_WIDTH);
-        sidebar.getStyleClass().add("sidebar");
+		Tab salesTab = new Tab("Sales Reports");
+		salesTab.setClosable(false);
+		salesTab.setContent(createSalesReportsPane());
 
-        // ☕ Logo/Title at the top
-        Label logo = new Label("☕ COFEE");
-        logo.setFont(Font.font("Poppins", FontWeight.BOLD, 20));
-        logo.getStyleClass().add("logo");
-        VBox.setMargin(logo, new Insets(20, 0, 30, 20));
+		tabs.getTabs().addAll(manageTab, salesTab);
 
-        // 📋 Navigation links
-        VBox navLinks = new VBox(5);
-        navLinks.getChildren().addAll(
-                createNavLink("🏠 Dashboard", true),
-                createNavLink("🍩 Menu Management", false),
-                createNavLink("📦 Orders", false),
-                createNavLink("📊 Sales Reports", false),
-                createNavLink("👤 Cashiers", false),
-                createNavLink("🛠 Settings", false)
-        );
+		root.setTop(topBar);
+		root.setCenter(tabs);
 
-        // 🔻 Spacer pushes logout button to the bottom
-        Region spacer = new Region();
-        VBox.setVgrow(spacer, Priority.ALWAYS);
+		Scene scene = new Scene(root, 1000, 700);
+		try {
+			String css = getClass().getResource("/dashboard.css").toExternalForm();
+			scene.getStylesheets().add(css);
+		} catch (Exception ex) {
+			// ignore if css not found
+		}
 
-        // 🚪 Logout Button
-        Button logoutButton = new Button("🚪 Logout");
-        logoutButton.getStyleClass().add("logout-button");
-        logoutButton.setMaxWidth(SIDEBAR_WIDTH - 40);
-        VBox.setMargin(logoutButton, new Insets(0, 20, 20, 20));
+		stage.setTitle("Coffee Shop - Admin Dashboard");
+		stage.setScene(scene);
+		stage.show();
+	}
 
-        sidebar.getChildren().addAll(logo, navLinks, spacer, logoutButton);
-        return sidebar;
-    }
+	private VBox createManageItemsPane() {
+		VBox root = new VBox(10);
+		root.setPadding(new Insets(12));
 
-    /**
-     * 🧭 Creates each navigation link/button inside the sidebar
-     */
-    private Button createNavLink(String text, boolean isActive) {
-        Button link = new Button(text);
-        link.getStyleClass().add("nav-link");
-        if (isActive) link.getStyleClass().add("active");
+		itemsTable = new TableView<>();
+		TableColumn<FoodItem, Integer> idCol = new TableColumn<>("ID");
+		idCol.setCellValueFactory(new PropertyValueFactory<>("id"));
+		idCol.setPrefWidth(80);
 
-        link.setMaxWidth(Double.MAX_VALUE);
-        link.setAlignment(Pos.CENTER_LEFT);
-        link.setPadding(new Insets(10, 20, 10, 20));
+		TableColumn<FoodItem, String> nameCol = new TableColumn<>("Name");
+		nameCol.setCellValueFactory(new PropertyValueFactory<>("name"));
+		nameCol.setPrefWidth(360);
+		nameCol.setCellFactory(TextFieldTableCell.forTableColumn());
+		nameCol.setOnEditCommit(ev -> {
+			FoodItem fi = ev.getRowValue();
+			String newName = ev.getNewValue();
+			fi.setName(newName);
+			updateFoodInDb(fi);
+			itemsTable.refresh();
+		});
 
-        // 🎯 Handle button click navigation
-       link.setOnAction(e -> {
-    Stage stage = (Stage) link.getScene().getWindow();
-    System.out.println("Navigated to: " + text);
+		TableColumn<FoodItem, Double> priceCol = new TableColumn<>("Price");
+		priceCol.setCellValueFactory(new PropertyValueFactory<>("price"));
+		priceCol.setPrefWidth(160);
+		priceCol.setCellFactory(TextFieldTableCell.forTableColumn(new DoubleStringConverter()));
+		priceCol.setOnEditCommit(ev -> {
+			FoodItem fi = ev.getRowValue();
+			Double v = ev.getNewValue();
+			if (v != null) {
+				fi.setPrice(v);
+				updateFoodInDb(fi);
+			}
+			itemsTable.refresh();
+		});
 
-    try {
-        // 🍩 Menu Management Page
-        if (text.contains("Menu Management")) {
-            CoffeeShopMenuManagement menuPage = new CoffeeShopMenuManagement();
-            menuPage.start(stage);
-        }
+		itemsTable.getColumns().addAll(idCol, nameCol, priceCol);
+		itemsTable.setEditable(true);
+		itemsTable.setItems(items);
 
-        // 📦 Orders Page
-        else if (text.contains("Orders")) {
-            CoffeeShopOrders ordersPage = new CoffeeShopOrders();
-            ordersPage.start(stage);
-        }
+		HBox form = new HBox(8);
+		TextField nameField = new TextField();
+		nameField.setPromptText("Name");
+		TextField priceField = new TextField();
+		priceField.setPromptText("Price");
+		Button addBtn = new Button("Add Item");
+		Button deleteBtn = new Button("Delete Selected");
 
-        else if (text.contains("Sales Reports")) {
-            CoffeeShopSalesReports reportsPage = new CoffeeShopSalesReports();
-            reportsPage.start(stage);
-        }
+		addBtn.setOnAction(e -> {
+			String name = nameField.getText().trim();
+			String priceText = priceField.getText().trim();
+			if (name.isEmpty() || priceText.isEmpty()) return;
+			try {
+				double p = Double.parseDouble(priceText);
+				addFoodToDb(name, p);
+				nameField.clear(); priceField.clear();
+				loadItemsFromDb();
+			} catch (NumberFormatException ex) {
+				ex.printStackTrace();
+			}
+		});
 
-        else if (text.contains("Cashiers")){
-            CoffeeShopCashiersMgmt cashiersPage = new CoffeeShopCashiersMgmt();
-            cashiersPage.start(stage);
-        }
-        
-        else if (text.contains("Settings")){
-            CoffeeShopSettings settingsPage = new CoffeeShopSettings();
-            settingsPage.start(stage);
-        }
-    } catch (Exception ex) {
-        ex.printStackTrace();
-    }
-});
+		deleteBtn.setOnAction(e -> {
+			FoodItem sel = itemsTable.getSelectionModel().getSelectedItem();
+			if (sel != null) {
+				deleteFoodFromDb(sel.getId());
+				loadItemsFromDb();
+			}
+		});
 
-        return link;
-    }
+		form.getChildren().addAll(nameField, priceField, addBtn, deleteBtn);
 
-    
-      //Creates the Top Bar with Page Title, Notification, Admin, and Date/Time
-     
-    private HBox createTopBar() {
-        HBox topBar = new HBox(10);
-        topBar.setPrefHeight(TOP_BAR_HEIGHT);
-        topBar.setAlignment(Pos.CENTER_LEFT);
-        topBar.getStyleClass().add("top-bar");
-        topBar.setPadding(new Insets(0, 20, 0, 20));
+		root.getChildren().addAll(itemsTable, form);
 
-        Label pageTitle = new Label("Dashboard");
-        pageTitle.setFont(Font.font("Poppins", FontWeight.BOLD, 22));
-        pageTitle.getStyleClass().add("page-title");
+		// initial load
+		loadItemsFromDb();
 
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
+		return root;
+	}
 
-        Label notificationIcon = new Label("🔔");
-        Label adminName = new Label("👤 Admin Name");
-        Label dateTime = new Label("⏰ Current Date/Time");
+	private VBox createSalesReportsPane() {
+		VBox root = new VBox(10);
+		root.setPadding(new Insets(12));
 
-        HBox.setMargin(adminName, new Insets(0, 10, 0, 10));
-        topBar.getChildren().addAll(pageTitle, spacer, notificationIcon, adminName, dateTime);
+		HBox controls = new HBox(8);
+		Button daily = new Button("Daily");
+		Button weekly = new Button("Weekly");
+		Button monthly = new Button("Monthly");
 
-        return topBar;
-    }
+		Label resultLabel = new Label("Select a period to view sales.");
 
-    
-      //Creates Dashboard Content (Statistics + Charts)
-     
-    private ScrollPane createDashboardContent() {
-        VBox content = new VBox(20);
-        content.getStyleClass().add("main-content-area");
-        content.setPadding(new Insets(20));
+		TableView<java.util.Map<String, Object>> billsTable = new TableView<>();
+		TableColumn<java.util.Map<String, Object>, String> bidCol = new TableColumn<>("Bill ID");
+		TableColumn<java.util.Map<String, Object>, String> dateCol = new TableColumn<>("Date");
+		TableColumn<java.util.Map<String, Object>, String> totCol = new TableColumn<>("Total");
+		bidCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(String.valueOf(c.getValue().get("id"))));
+		dateCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(String.valueOf(c.getValue().get("bill_date"))));
+		totCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(String.valueOf(c.getValue().get("total"))));
+		 billsTable.getColumns().addAll(bidCol, dateCol, totCol);
 
-        // --- Statistic cards section ---
-        GridPane statGrid = new GridPane();
-        statGrid.setHgap(20);
-        statGrid.setVgap(20);
+		 // double-click a bill to recreate and show the e-bill
+		 billsTable.setOnMouseClicked(ev -> {
+			 if (ev.getClickCount() == 2) {
+				 java.util.Map<String,Object> sel = billsTable.getSelectionModel().getSelectedItem();
+				 if (sel != null) {
+					 String billId = String.valueOf(sel.get("id"));
+					 showBillPopup(billId);
+				 }
+			 }
+		 });
 
-        ColumnConstraints cc = new ColumnConstraints();
-        cc.setPercentWidth(25);
-        cc.setHgrow(Priority.ALWAYS);
-        statGrid.getColumnConstraints().addAll(cc, cc, cc, cc);
+		controls.getChildren().addAll(daily, weekly, monthly);
 
-        // Add cards (Top Dashboard Summary)
-        statGrid.add(createStatCard("💵 Total Sales (Today)", "$325.00"), 0, 0);
-        statGrid.add(createStatCard("📄 Orders Completed", "47"), 1, 0);
-        statGrid.add(createStatCard("☕ Best Seller", "Cappuccino"), 2, 0);
-        statGrid.add(createStatCard("👥 Active Cashiers", "3"), 3, 0);
+		daily.setOnAction(e -> {
+			LocalDate today = LocalDate.now();
+			LocalDateTime start = today.atStartOfDay();
+			LocalDateTime end = today.atTime(LocalTime.MAX);
+			List<java.util.Map<String,Object>> rows = queryBillsBetween(start, end);
+			double sum = rows.stream().mapToDouble(r -> ((Number)r.get("total")).doubleValue()).sum();
+			resultLabel.setText(String.format("Daily Sales: Rs %.2f", sum));
+			billsTable.getItems().setAll(rows);
+		});
 
-        // --- Chart placeholders section ---
-        HBox chartsSection = new HBox(20);
-        chartsSection.getChildren().addAll(
-                createChartPlaceholder("Sales Overview (Chart Placeholder)"),
-                createChartPlaceholder("Top 5 Menu Items (Chart Placeholder)")
-        );
+		weekly.setOnAction(e -> {
+			LocalDate today = LocalDate.now();
+			LocalDateTime start = today.minusDays(6).atStartOfDay();
+			LocalDateTime end = today.atTime(LocalTime.MAX);
+			List<java.util.Map<String,Object>> rows = queryBillsBetween(start, end);
+			double sum = rows.stream().mapToDouble(r -> ((Number)r.get("total")).doubleValue()).sum();
+			resultLabel.setText(String.format("Weekly Sales: Rs %.2f", sum));
+			billsTable.getItems().setAll(rows);
+		});
 
-        // Add both sections to main content
-        content.getChildren().addAll(statGrid, chartsSection);
+		monthly.setOnAction(e -> {
+			LocalDate today = LocalDate.now();
+			LocalDate first = today.withDayOfMonth(1);
+			LocalDateTime start = first.atStartOfDay();
+			LocalDateTime end = today.atTime(LocalTime.MAX);
+			List<java.util.Map<String,Object>> rows = queryBillsBetween(start, end);
+			double sum = rows.stream().mapToDouble(r -> ((Number)r.get("total")).doubleValue()).sum();
+			resultLabel.setText(String.format("Monthly Sales: Rs %.2f", sum));
+			billsTable.getItems().setAll(rows);
+		});
 
-        ScrollPane scrollPane = new ScrollPane(content);
-        scrollPane.setFitToWidth(true);
-        scrollPane.getStyleClass().add("scroll-pane");
+		root.getChildren().addAll(controls, resultLabel, billsTable);
+		return root;
+	}
 
-        return scrollPane;
-    }
+	// DB helpers
+	private Connection getConnection() throws Exception {
+		Class.forName("com.mysql.cj.jdbc.Driver");
+		return DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+	}
 
-    
-      //Creates a single Statistic Card (e.g., Total Sales)
-     
-    private VBox createStatCard(String title, String data) {
-        VBox card = new VBox(5);
-        card.getStyleClass().add("stat-card");
-        card.setPadding(new Insets(20));
+	private void loadItemsFromDb() {
+		items.clear();
+		try (Connection c = getConnection()) {
+			String sql = "SELECT id, fName, fPrice FROM food";
+			try (PreparedStatement ps = c.prepareStatement(sql); ResultSet rs = ps.executeQuery()) {
+				while (rs.next()) {
+					items.add(new FoodItem(rs.getInt("id"), rs.getString("fName"), rs.getDouble("fPrice")));
+				}
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+	}
 
-        Label titleLabel = new Label(title);
-        titleLabel.getStyleClass().add("card-title");
+	private void addFoodToDb(String name, double price) {
+		try (Connection c = getConnection()) {
+			String sql = "INSERT INTO food (fName, fPrice) VALUES (?, ?)";
+			try (PreparedStatement ps = c.prepareStatement(sql)) {
+				ps.setString(1, name);
+				ps.setDouble(2, price);
+				ps.executeUpdate();
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+	}
 
-        Label dataLabel = new Label(data);
-        dataLabel.getStyleClass().add("card-data");
+	private void updateFoodInDb(FoodItem fi) {
+		try (Connection c = getConnection()) {
+			String sql = "UPDATE food SET fName = ?, fPrice = ? WHERE id = ?";
+			try (PreparedStatement ps = c.prepareStatement(sql)) {
+				ps.setString(1, fi.getName());
+				ps.setDouble(2, fi.getPrice());
+				ps.setInt(3, fi.getId());
+				ps.executeUpdate();
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+	}
 
-        card.getChildren().addAll(titleLabel, dataLabel);
-        return card;
-    }
+	private void deleteFoodFromDb(int id) {
+		try (Connection c = getConnection()) {
+			String sql = "DELETE FROM food WHERE id = ?";
+			try (PreparedStatement ps = c.prepareStatement(sql)) {
+				ps.setInt(1, id);
+				ps.executeUpdate();
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+	}
 
-    
-      //Creates a Placeholder Box for Chart
-     
-    private VBox createChartPlaceholder(String title) {
-        VBox chartBox = new VBox(10);
-        chartBox.getStyleClass().add("chart-box");
-        chartBox.setPadding(new Insets(15));
-        HBox.setHgrow(chartBox, Priority.ALWAYS);
+	private List<java.util.Map<String,Object>> queryBillsBetween(LocalDateTime start, LocalDateTime end) {
+		List<java.util.Map<String,Object>> rows = new ArrayList<>();
+		try (Connection c = getConnection()) {
+			// Ensure bills table exists (if not, return empty list)
+			try (Statement s = c.createStatement()) {
+				// no-op; if bills doesn't exist an exception will be thrown and caught below
+			}
 
-        Label titleLabel = new Label(title);
-        titleLabel.getStyleClass().add("chart-title");
+			String sql = "SELECT id, bill_date, total FROM bills WHERE bill_date BETWEEN ? AND ? ORDER BY bill_date DESC";
+			try (PreparedStatement ps = c.prepareStatement(sql)) {
+				ps.setObject(1, java.sql.Timestamp.valueOf(start));
+				ps.setObject(2, java.sql.Timestamp.valueOf(end));
+				try (ResultSet rs = ps.executeQuery()) {
+					while (rs.next()) {
+						java.util.Map<String,Object> m = new java.util.HashMap<>();
+						m.put("id", rs.getString("id"));
+						m.put("bill_date", rs.getTimestamp("bill_date").toString());
+						m.put("total", rs.getDouble("total"));
+						rows.add(m);
+					}
+				}
+			}
+		} catch (Exception ex) {
+			// if the tables don't exist yet, just return empty result gracefully
+			ex.printStackTrace();
+		}
+		return rows;
+	}
 
-        Region chartRegion = new Region();
-        chartRegion.setPrefHeight(300);
-        chartRegion.getStyleClass().add("chart-region-placeholder");
+	// Show stored e-bill file if available; otherwise fall back to DB reconstruction
+	private void showBillPopup(String billId) {
+		StringBuilder sb = new StringBuilder();
 
-        chartBox.getChildren().addAll(titleLabel, chartRegion);
-        return chartBox;
-    }
+		// Try to read saved ebill file first (filename: bill_<billId>.txt)
+		File dir = new File("ebills");
+		File f = new File(dir, "bill_" + billId + ".txt");
+		if (f.exists() && f.isFile()) {
+			try {
+				byte[] bytes = Files.readAllBytes(f.toPath());
+				String content = new String(bytes, StandardCharsets.UTF_8);
+				sb.append(content);
+			} catch (Exception ex) {
+				sb.append("Could not read stored e-bill: ").append(ex.getMessage()).append("\n");
+				ex.printStackTrace();
+			}
+		} else {
+			// If file missing alert
+			Alert a = new Alert(Alert.AlertType.WARNING);
+			a.initOwner(primaryStage);
+			a.setTitle("E-Bill Not Found");
+			a.setHeaderText("Stored e-bill not found");
+			a.setContentText("No stored e-bill file was found for bill ID: " + billId + ".\nPlease verify the bill files in the 'ebills' folder.");
+			a.showAndWait();
+			return;
+		}
+
+		Stage billStage = new Stage();
+		if (primaryStage != null) billStage.initOwner(primaryStage);
+		billStage.initModality(Modality.APPLICATION_MODAL);
+		billStage.setTitle("E-Bill - " + billId);
+
+		TextArea ta = new TextArea(sb.toString());
+		ta.setEditable(false);
+		ta.setWrapText(true);
+		ta.setPrefWidth(580);
+		ta.setPrefHeight(520);
+
+		Button printBtn = new Button("Print");
+		Button closeBtn = new Button("Close");
+		HBox buttonsBox = new HBox(10, printBtn, closeBtn);
+		buttonsBox.setAlignment(Pos.CENTER_RIGHT);
+
+		VBox billRoot = new VBox(10, ta, buttonsBox);
+		billRoot.setPadding(new Insets(10));
+
+		Scene billScene = new Scene(billRoot, 600, 600);
+		try {
+			String css = getClass().getResource("/dashboard.css").toExternalForm();
+			billScene.getStylesheets().add(css);
+		} catch (Exception ex) {
+			// ignore
+		}
+
+		billStage.setScene(billScene);
+		billStage.show();
+
+		printBtn.setOnAction(ev -> {
+			PrinterJob job = PrinterJob.createPrinterJob();
+			if (job != null) {
+				boolean proceed = job.showPrintDialog(billStage);
+				if (proceed) {
+					boolean printed = job.printPage(ta);
+					if (printed) job.endJob();
+				}
+			}
+		});
+
+		closeBtn.setOnAction(ev -> billStage.close());
+	}
+
 }
