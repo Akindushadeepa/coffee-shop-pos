@@ -28,7 +28,6 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.Statement;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -38,8 +37,14 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.charset.StandardCharsets;
 import javafx.scene.control.Alert;
+import com.coffee_shop.model.UsersRepository;
+import com.coffee_shop.model.Users;
+import com.coffee_shop.model.Admin;
+import com.coffee_shop.model.Cashier;
 
 public class CoffeeShopDashboard {
+
+	private final UsersRepository usersRepository = new UsersRepository();
 
 	// Change this constant if your database name or credentials differ
 	private static final String DB_URL = "jdbc:mysql://localhost:3306/restaurant?serverTimezone=UTC";
@@ -99,7 +104,11 @@ public class CoffeeShopDashboard {
 		salesTab.setClosable(false);
 		salesTab.setContent(createSalesReportsPane());
 
-		tabs.getTabs().addAll(manageTab, salesTab);
+		Tab manageUsersTab = new Tab("Manage Users");
+		manageUsersTab.setClosable(false);
+		manageUsersTab.setContent(createManageUsersPane());
+
+		tabs.getTabs().addAll(java.util.Arrays.asList(manageTab, salesTab, manageUsersTab));
 
 		root.setTop(topBar);
 		root.setCenter(tabs);
@@ -152,7 +161,8 @@ public class CoffeeShopDashboard {
 			itemsTable.refresh();
 		});
 
-		itemsTable.getColumns().addAll(idCol, nameCol, priceCol);
+
+		itemsTable.getColumns().addAll(java.util.Arrays.asList(idCol, nameCol, priceCol));
 		itemsTable.setEditable(true);
 		itemsTable.setItems(items);
 
@@ -214,7 +224,7 @@ public class CoffeeShopDashboard {
 		bidCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(String.valueOf(c.getValue().get("id"))));
 		dateCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(String.valueOf(c.getValue().get("bill_date"))));
 		totCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(String.valueOf(c.getValue().get("total"))));
-		 billsTable.getColumns().addAll(bidCol, dateCol, totCol);
+		 billsTable.getColumns().addAll(java.util.Arrays.asList(bidCol, dateCol, totCol));
 
 		 // double-click a bill to recreate and show the e-bill
 		 billsTable.setOnMouseClicked(ev -> {
@@ -262,6 +272,121 @@ public class CoffeeShopDashboard {
 
 		root.getChildren().addAll(controls, resultLabel, billsTable);
 		return root;
+	}
+
+	private VBox createManageUsersPane() {
+		VBox box = new VBox(10);
+		box.setPadding(new Insets(12));
+
+		Label info = new Label("Manage users: add, edit or remove accounts. Role selects ADMIN or CASHIER.");
+		info.setWrapText(true);
+
+		// Table model for manageable users
+		class UserRow {
+			private final javafx.beans.property.SimpleStringProperty username = new javafx.beans.property.SimpleStringProperty();
+			private final javafx.beans.property.SimpleStringProperty password = new javafx.beans.property.SimpleStringProperty();
+			private final javafx.beans.property.SimpleStringProperty role = new javafx.beans.property.SimpleStringProperty();
+
+			UserRow(String u, String p, String r) { username.set(u); password.set(p); role.set(r); }
+			public String getUsername() { return username.get(); }
+			public void setUsername(String u) { username.set(u); }
+			public javafx.beans.property.StringProperty usernameProperty() { return username; }
+
+			public String getPassword() { return password.get(); }
+			public void setPassword(String p) { password.set(p); }
+			public javafx.beans.property.StringProperty passwordProperty() { return password; }
+
+			public String getRole() { return role.get(); }
+			public void setRole(String r) { role.set(r); }
+			public javafx.beans.property.StringProperty roleProperty() { return role; }
+		}
+
+		TableView<UserRow> table = new TableView<>();
+		ObservableList<UserRow> data = FXCollections.observableArrayList();
+
+		TableColumn<UserRow, String> userCol = new TableColumn<>("Username");
+		userCol.setCellValueFactory(c -> c.getValue().usernameProperty());
+		userCol.setCellFactory(TextFieldTableCell.forTableColumn());
+		userCol.setOnEditCommit(ev -> ev.getRowValue().setUsername(ev.getNewValue()));
+		userCol.setPrefWidth(200);
+
+		TableColumn<UserRow, String> passCol = new TableColumn<>("Password");
+		passCol.setCellValueFactory(c -> c.getValue().passwordProperty());
+		passCol.setCellFactory(TextFieldTableCell.forTableColumn());
+		passCol.setOnEditCommit(ev -> ev.getRowValue().setPassword(ev.getNewValue()));
+		passCol.setPrefWidth(200);
+
+		TableColumn<UserRow, String> roleCol = new TableColumn<>("Role");
+		roleCol.setCellValueFactory(c -> c.getValue().roleProperty());
+		roleCol.setCellFactory(javafx.scene.control.cell.ComboBoxTableCell.forTableColumn("ADMIN", "CASHIER"));
+		roleCol.setOnEditCommit(ev -> ev.getRowValue().setRole(ev.getNewValue()));
+		roleCol.setPrefWidth(150);
+
+		table.getColumns().addAll(java.util.Arrays.asList(userCol, passCol, roleCol));
+		table.setEditable(true);
+		table.setItems(data);
+
+		// load existing users
+		try {
+			java.util.List<Users> existing = usersRepository.getAllUsers();
+			for (Users u : existing) data.add(new UserRow(u.getUsername(), u.getPassword(), u.getRole()));
+		} catch (Exception ex) {
+			// show an alert but continue with empty table
+			ex.printStackTrace();
+			Alert a = new Alert(Alert.AlertType.WARNING, "Could not load users: " + ex.getMessage());
+			a.showAndWait();
+		}
+
+		Button addBtn = new Button("Add");
+		Button delBtn = new Button("Delete Selected");
+		Button saveBtn = new Button("Save and Replace All Users");
+		Button refreshBtn = new Button("Refresh");
+
+		addBtn.setOnAction(e -> data.add(new UserRow("newuser", "password", "CASHIER")));
+		delBtn.setOnAction(e -> {
+			UserRow sel = table.getSelectionModel().getSelectedItem();
+			if (sel != null) data.remove(sel);
+		});
+
+		saveBtn.setOnAction(e -> {
+			java.util.List<Users> newUsers = new java.util.ArrayList<>();
+			for (UserRow r : data) {
+				String u = r.getUsername();
+				String p = r.getPassword();
+				String role = r.getRole();
+				if (u == null || u.trim().isEmpty() || p == null) continue;
+				if ("ADMIN".equalsIgnoreCase(role)) newUsers.add(new Admin(u.trim(), p));
+				else if ("CASHIER".equalsIgnoreCase(role)) newUsers.add(new Cashier(u.trim(), p));
+				else newUsers.add(new Users(u.trim(), p) { public String getRole() { return role; } });
+			}
+			try {
+				usersRepository.replaceUsers(newUsers);
+				Alert a = new Alert(Alert.AlertType.INFORMATION, "Users replaced successfully.");
+				a.showAndWait();
+			} catch (Exception ex) {
+				ex.printStackTrace();
+				Alert a = new Alert(Alert.AlertType.ERROR, "Could not replace users: " + ex.getMessage());
+				a.showAndWait();
+			}
+		});
+
+		refreshBtn.setOnAction(e -> {
+			data.clear();
+			try {
+				java.util.List<Users> existing = usersRepository.getAllUsers();
+				for (Users u : existing) data.add(new UserRow(u.getUsername(), u.getPassword(), u.getRole()));
+			} catch (Exception ex) {
+				ex.printStackTrace();
+				Alert a = new Alert(Alert.AlertType.WARNING, "Could not load users: " + ex.getMessage());
+				a.showAndWait();
+			}
+		});
+
+		HBox controls = new HBox(10, addBtn, delBtn, refreshBtn, saveBtn);
+		controls.setAlignment(Pos.CENTER_RIGHT);
+
+		box.getChildren().addAll(info, table, controls);
+		return box;
 	}
 
 	// DB helpers
@@ -326,10 +451,7 @@ public class CoffeeShopDashboard {
 	private List<java.util.Map<String,Object>> queryBillsBetween(LocalDateTime start, LocalDateTime end) {
 		List<java.util.Map<String,Object>> rows = new ArrayList<>();
 		try (Connection c = getConnection()) {
-			// Ensure bills table exists (if not, return empty list)
-			try (Statement s = c.createStatement()) {
-				// no-op; if bills doesn't exist an exception will be thrown and caught below
-			}
+			// If the bills table doesn't exist the subsequent query will throw and be caught below.
 
 			String sql = "SELECT id, bill_date, total FROM bills WHERE bill_date BETWEEN ? AND ? ORDER BY bill_date DESC";
 			try (PreparedStatement ps = c.prepareStatement(sql)) {
