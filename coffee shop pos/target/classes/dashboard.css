@@ -1,0 +1,257 @@
+/* --- Color Variables from Design Guide --- */
+.root {
+    /* Primary Colors */
+    -pos-dark-brown: #3E2723;   /* Sidebar Background */
+    -pos-primary: #6F4E37;      /* Buttons, Highlights */
+    -pos-accent: #C89B7B;       /* Secondary/Hover elements */
+    
+    /* Text/Background */
+    -pos-bg-light: #F8F9FA;     /* Page Background */
+    -pos-text-dark: #333333;
+    -pos-text-light: #666666;
+    -pos-white: #FFFFFF;
+    
+    /* Font */
+    -fx-font-family: "Inter", "Poppins", "Arial";
+    font-family: "Inter", "Poppins", "Arial";
+    -fx-font-size: 14px;
+    font-size: 14px;
+}
+
+/* --- Global Styles --- */
+
+.scroll-pane {
+    -fx-background-color: -pos-bg-light;
+    background-color: -pos-bg-light;
+    -fx-border-color: transparent;
+    border-color: transparent;
+}
+
+/* --- Sidebar Styling --- */
+.sidebar {
+    -fx-background-color: -pos-dark-brown;
+    background-color: -pos-dark-brown;
+    -fx-padding: 0;
+    padding: 0;
+    -fx-spacing: 0;
+}
+
+.logo {
+    -fx-text-fill: -pos-white;
+    color: -pos-white;
+}
+
+.nav-link {
+    -fx-background-color: rgba(200, 155, 123, 0.2);
+    background-color: transparent;
+    -fx-text-fill: -pos-white;
+    color: -pos-white;
+    -fx-font-size: 16px;
+    font-size: 16px;
+    -fx-alignment: center-left;
+    text-align: left;
+    -fx-pref-height: 40px;
+    min-height: 40px;
+    -fx-padding: 10 20;
+    padding: 10px 20px;
+    -fx-cursor: hand;
+    cursor: pointer;
+    -fx-border-radius: 0 5px 5px 0; /* Rounded on right side */
+    border-radius: 0 5px 5px 0;
+    -fx-background-radius: 0 5px 5px 0;
+}
+
+
+.nav-link:hover {
+    -fx-background-color: rgba(200, 155, 123, 1); /* Semi-transparent Accent */
+    background-color: rgba(200, 155, 123, 0.2);
+}
+
+
+/* Style for the currently selected link */
+.nav-link.active {
+    -fx-background-color: rgba(200, 155, 123, 0.2);
+    background-color: -pos-accent;
+    -fx-font-weight: bold;
+    font-weight: bold;
+    -fx-text-fill: -pos-dark-brown;
+    color: -pos-dark-brown;
+}
+
+.logout-button {
+    -fx-background-color: -pos-primary;
+    background-color: -pos-primary;
+    -fx-text-fill: -pos-white;
+    color: -pos-white;
+    -fx-font-weight: bold;
+    font-weight: bold;
+    -fx-padding: 10 20;
+    padding: 10px 20px;
+    -fx-background-radius: 5px;
+    border-radius: 5px;
+    -fx-cursor: hand;
+    cursor: pointer;
+}
+
+.logout-button:hover {
+    -fx-background-color: derive(-pos-primary, -10%);
+    background-color: derive(-pos-primary, -10%);
+}
+
+
+/* --- Top Bar Styling --- */
+.top-bar {
+    -fx-background-color: -pos-white;
+    background-color: -pos-white;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 4, 0, 0, 1); /* Subtle Shadow */
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    -fx-min-height: 60px;
+    min-height: 60px;
+    -fx-border-color: transparent;
+    border-color: transparent;
+}
+
+.page-title {
+    -fx-font-weight: bold;
+    font-weight: bold;
+    -fx-text-fill: -pos-text-dark;
+    color: -pos-text-dark;
+}
+
+
+/* --- Main Content Area Styling --- */
+.main-content-area {
+    -fx-background-color: -pos-bg-light;
+    background-color: -pos-bg-light;
+}
+
+/* Statistic Cards */
+.stat-card {
+    -fx-background-color: -pos-white;
+    background-color: -pos-white;
+    -fx-background-radius: 8px;
+    border-radius: 8px;
+    -fx-border-color: rgba(0,0,0,0.05);
+    border-color: rgba(0,0,0,0.05);
+    -fx-border-width: 1px;
+    border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-padding: 20px;
+    padding: 20px;
+}
+
+.card-title {
+    -fx-font-size: 14px;
+    font-size: 14px;
+    -fx-text-fill: -pos-text-light;
+    color: -pos-text-light;
+}
+
+.card-data {
+    -fx-font-size: 28px;
+    font-size: 28px;
+    -fx-font-weight: bold;
+    font-weight: bold;
+    -fx-text-fill: -pos-text-dark;
+    color: -pos-text-dark;
+}
+
+/* Chart Placeholders */
+.chart-box {
+    -fx-background-color: -pos-white;
+    background-color: -pos-white;
+    -fx-background-radius: 8px;
+    border-radius: 8px;
+    -fx-border-color: rgba(0,0,0,0.05);
+    border-color: rgba(0,0,0,0.05);
+    border-color: rgba(0,0,0,0.05);
+    -fx-border-width: 1px;
+    border-width: 1px;
+    -fx-border-radius: 8px;
+}
+
+.chart-title {
+    -fx-font-weight: bold;
+    font-weight: bold;
+    -fx-text-fill: -pos-text-dark;
+    color: -pos-text-dark;
+    -fx-font-size: 18px;
+    font-size: 18px;
+}
+
+.chart-region-placeholder {
+    -fx-background-color: #E0E0E0; /* Grey fill to show where chart goes */
+    background-color: #E0E0E0; /* Grey fill to show where chart goes */
+    -fx-background-radius: 5px;
+}
+
+/* --- Login Page Styling --- */
+.login-container {
+    -fx-background-color: -pos-bg-light;
+    background-color: -pos-bg-light;
+    -fx-alignment: center;
+    -fx-spacing: 20;
+    -fx-padding: 40;
+}
+
+.login-title {
+    -fx-font-size: 28px;
+    font-size: 28px;
+    -fx-font-weight: bold;
+    font-weight: bold;
+    -fx-text-fill: -pos-dark-brown;
+    color: -pos-dark-brown;
+}
+
+.login-label {
+    -fx-font-size: 14px;
+    font-size: 14px;
+    -fx-text-fill: -pos-text-dark;
+    color: -pos-text-dark;
+    -fx-font-weight: bold;
+    font-weight: bold;
+}
+
+.login-field {
+    -fx-padding: 10px;
+    padding: 10px;
+    -fx-font-size: 14px;
+    font-size: 14px;
+    -fx-border-radius: 5px;
+    border-radius: 5px;
+    -fx-border-color: #DDD;
+    border-color: #DDD;
+    -fx-border-width: 1px;
+    border-width: 1px;
+    -fx-background-color: -pos-white;
+    background-color: -pos-white;
+}
+
+.login-field:focused {
+    -fx-border-color: -pos-primary;
+    border-color: -pos-primary;
+    -fx-border-width: 2px;
+    border-width: 2px;
+}
+
+.login-button {
+    -fx-background-color: -pos-primary;
+    background-color: -pos-primary;
+    -fx-text-fill: -pos-white;
+    color: -pos-white;
+    -fx-font-size: 14px;
+    font-size: 14px;
+    -fx-font-weight: bold;
+    font-weight: bold;
+    -fx-background-radius: 5px;
+    border-radius: 5px;
+    -fx-cursor: hand;
+    cursor: pointer;
+    -fx-padding: 10px 20px;
+    padding: 10px 20px;
+}
+
+.login-button:hover {
+    -fx-background-color: derive(-pos-primary, -10%);
+    background-color: derive(-pos-primary, -10%);
+}
