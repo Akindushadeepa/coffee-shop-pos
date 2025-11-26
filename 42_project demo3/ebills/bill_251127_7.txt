@@ -1,0 +1,16 @@
+BILL ID: 251127_7
+COFFEE SHOP - E-BILL
+Date: 2025-11-27 01:34:09
+-----------------------------------------------
+Item                             Qty       Unit      Total
+-----------------------------------------------
+Espresso                           2     122.00     244.00
+Double Espresso                    1     100.00     100.00
+Latte                              3    2550.00    7650.00
+Caramel Latte                      1     201.00     201.00
+Iced Coffee                        1    1000.00    1000.00
+Iced Mocha                         1     450.00     450.00
+-----------------------------------------------
+                                   GRAND TOTAL:    9645.00
+
+Thank you for your purchase!

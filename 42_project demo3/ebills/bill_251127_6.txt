@@ -1,0 +1,16 @@
+BILL ID: 251127_6
+COFFEE SHOP - E-BILL
+Date: 2025-11-27 01:18:21
+-----------------------------------------------
+Item                             Qty       Unit      Total
+-----------------------------------------------
+rools                              1     100.00     100.00
+Double Espresso                    2     100.00     200.00
+Latte                              1    2550.00    2550.00
+Caramel Latte                      1     201.00     201.00
+Cappuccino                         1     120.00     120.00
+Macchiato                          2    1235.00    2470.00
+-----------------------------------------------
+                                   GRAND TOTAL:    5641.00
+
+Thank you for your purchase!

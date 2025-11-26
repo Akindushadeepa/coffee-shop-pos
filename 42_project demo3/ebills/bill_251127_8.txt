@@ -1,0 +1,15 @@
+BILL ID: 251127_8
+COFFEE SHOP - E-BILL
+Date: 2025-11-27 01:48:14
+Cashier: cashier1
+-----------------------------------------------
+Item                             Qty       Unit      Total
+-----------------------------------------------
+rools                              2     100.00     200.00
+Espresso                           1     122.00     122.00
+Cappuccino                         1     120.00     120.00
+Latte                              1    2550.00    2550.00
+-----------------------------------------------
+                                   GRAND TOTAL:    2992.00
+
+Thank you for your purchase!

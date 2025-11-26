@@ -1,0 +1,13 @@
+BILL ID: 251127_9
+COFFEE SHOP - E-BILL
+Date: 2025-11-27 02:20:50
+Table: 1
+Cashier: cashier1
+-----------------------------------------------
+Item                             Qty       Unit      Total
+-----------------------------------------------
+Cappuccino                         2     788.00    1576.00
+-----------------------------------------------
+                                   GRAND TOTAL:    1576.00
+
+Thank you for your purchase!
