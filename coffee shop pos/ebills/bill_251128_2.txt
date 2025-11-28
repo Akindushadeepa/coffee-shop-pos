@@ -1,0 +1,13 @@
+BILL ID: 251128_2
+COFFEE SHOP - E-BILL
+Date: 2025-11-28 12:25:38
+Table: 1
+Cashier: cashier
+-----------------------------------------------
+Item                             Qty       Unit      Total
+-----------------------------------------------
+Black coffee                       1     150.00     150.00
+-----------------------------------------------
+                                   GRAND TOTAL:     150.00
+
+Thank you for your purchase!

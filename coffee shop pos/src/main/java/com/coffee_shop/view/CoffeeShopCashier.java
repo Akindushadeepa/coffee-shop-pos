@@ -7,528 +7,533 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
-import javafx.scene.control.*;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.control.cell.TextFieldTableCell;
 import javafx.util.converter.IntegerStringConverter;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.control.TextArea;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.TextField;
+import javafx.print.PrinterJob;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.DriverManager;
+import javafx.stage.Modality;
 import javafx.scene.layout.Priority;
+import javafx.scene.control.TableRow;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
-import javafx.stage.Modality;
-import javafx.print.PrinterJob;
-
-import java.sql.*;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.io.*;
 
 public class CoffeeShopCashier {
+	private String currentCashier = "CASHIER"; // default, set using setCurrentCashier
+	public void setCurrentCashier(String username) { this.currentCashier = username; }
 
-    // Database configuration
-    private static final String DB_URL = "jdbc:mysql://localhost:3306/restaurant?serverTimezone=UTC";
-    private static final String DB_USER = "root";
-    private static final String DB_PASS = "";
+	public static class CartItem {
+		private final SimpleIntegerProperty foodId = new SimpleIntegerProperty();
+		private final SimpleStringProperty name = new SimpleStringProperty();
+		private final SimpleIntegerProperty qty = new SimpleIntegerProperty(1);
+		private final SimpleDoubleProperty unitPrice = new SimpleDoubleProperty();
+		private final SimpleDoubleProperty total = new SimpleDoubleProperty();
 
-    public static class CartItem {
-        private final SimpleIntegerProperty foodId = new SimpleIntegerProperty();
-        private final SimpleStringProperty name = new SimpleStringProperty();
-        private final SimpleIntegerProperty qty = new SimpleIntegerProperty(1);
-        private final SimpleDoubleProperty unitPrice = new SimpleDoubleProperty();
-        private final SimpleDoubleProperty total = new SimpleDoubleProperty();
+		public CartItem(int foodId, String name, double unitPrice) {
+			this.foodId.set(foodId);
+			this.name.set(name);
+			this.unitPrice.set(unitPrice);
+			updateTotal();
+			this.qty.addListener((o, oldV, newV) -> updateTotal());
+		}
 
-        public CartItem(int foodId, String name, double unitPrice) {
-            this.foodId.set(foodId);
-            this.name.set(name);
-            this.unitPrice.set(unitPrice);
-            updateTotal();
-            this.qty.addListener((o, oldV, newV) -> updateTotal());
-        }
+		public int getFoodId() { return foodId.get(); }
+		public String getName() { return name.get(); }
+		public int getQty() { return qty.get(); }
+		public double getUnitPrice() { return unitPrice.get(); }
+		public double getTotal() { return total.get(); }
 
-        public int getFoodId() { return foodId.get(); }
-        public String getName() { return name.get(); }
-        public int getQty() { return qty.get(); }
-        public double getUnitPrice() { return unitPrice.get(); }
-        public double getTotal() { return total.get(); }
+		public void setQty(int q) { this.qty.set(q); }
+		public void incrementQty() { this.qty.set(this.qty.get() + 1); }
 
-        public void setQty(int q) { 
-            if (q > 0) {
-                this.qty.set(q); 
-            }
-        }
-        
-        public void incrementQty() { 
-            this.qty.set(this.qty.get() + 1); 
-        }
+		private void updateTotal() { this.total.set(this.qty.get() * this.unitPrice.get()); }
+	}
 
-        private void updateTotal() { 
-            this.total.set(this.qty.get() * this.unitPrice.get()); 
-        }
-    }
+	public void start(Stage stage) {
+		BorderPane root = new BorderPane();
+		root.getStyleClass().add("main-content-area");
 
-    public void start(Stage stage) {
-        BorderPane root = new BorderPane();
-        root.getStyleClass().add("main-content-area");
+		// Top bar with title and back button
+		HBox topBar = new HBox(10);
+		topBar.setPadding(new Insets(10, 20, 10, 20));
+		topBar.setAlignment(Pos.CENTER_LEFT);
+		topBar.getStyleClass().add("top-bar");
 
-        // Top bar
-        HBox topBar = createTopBar(stage);
-        
-        // Main content area
-        BorderPane content = new BorderPane();
-        
-        // Left: Menu items from database
-        VBox menuBox = createMenuPanel();
-        
-        // Center: Shopping cart table
-        VBox centerBox = new VBox(10);
-        centerBox.setPadding(new Insets(10));
-        
-        Label cartLabel = new Label("Shopping Cart");
-        cartLabel.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
-        
-        TableView<CartItem> cartTable = createCartTable();
-        
-        // Grand total tracking
-        DoubleProperty grandTotal = new SimpleDoubleProperty(0);
-        
-        centerBox.getChildren().addAll(cartLabel, cartTable);
-        
-        // Right: Totals and actions
-        VBox rightBox = createActionsPanel(cartTable, grandTotal, stage);
-        
-        // Setup cart table editing
-        setupCartTableEditing(cartTable, grandTotal);
-        
-        // Load menu items from database
-        loadMenuItems(menuBox, cartTable, grandTotal);
-        
-        // Layout assembly
-        content.setLeft(menuBox);
-        content.setCenter(centerBox);
-        content.setRight(rightBox);
-        
-        root.setTop(topBar);
-        root.setCenter(content);
+		Label title = new Label("Cashier POS");
+		title.setStyle("-fx-font-size: 20px; -fx-font-weight: bold;");
+		title.getStyleClass().add("page-title");
 
-        Scene scene = new Scene(root, 1200, 750);
-        loadCSS(scene);
+		Button backBtn = new Button("⬅ Back");
+		backBtn.setOnAction(e -> {
+			try {
+				CoffeeShopApp App = new CoffeeShopApp();
+				App.start(stage);
+			} catch (Exception ex) {
+				ex.printStackTrace();
+			}
+		});
 
-        stage.setTitle("Coffee Shop POS - Cashier");
-        stage.setScene(scene);
-        stage.show();
-    }
+		HBox spacer = new HBox();
+		HBox.setHgrow(spacer, Priority.ALWAYS);
 
-    private HBox createTopBar(Stage stage) {
-        HBox topBar = new HBox(10);
-        topBar.setPadding(new Insets(10, 20, 10, 20));
-        topBar.setAlignment(Pos.CENTER_LEFT);
-        topBar.getStyleClass().add("top-bar");
+		topBar.getChildren().addAll(backBtn, title, spacer);
 
-        Button backBtn = new Button("⬅ Logout");
-        backBtn.getStyleClass().add("nav-link");
-        backBtn.setOnAction(e -> {
-            try {
-                CoffeeShopApp app = new CoffeeShopApp();
-                app.start(stage);
-            } catch (Exception ex) {
-                ex.printStackTrace();
-                showError("Navigation Error", "Could not return to login page.");
-            }
-        });
+		// Left: menu buttons (loaded from DB)
+		VBox menuBox = new VBox(10);
+		menuBox.setPadding(new Insets(10));
+		menuBox.setPrefWidth(260);
+		menuBox.getStyleClass().add("sidebar");
 
-        Label title = new Label("☕ Cashier Point of Sale");
-        title.setStyle("-fx-font-size: 22px; -fx-font-weight: bold;");
-        title.getStyleClass().add("page-title");
+		Label menuLabel = new Label("Menu Items");
+		menuLabel.setStyle("-fx-font-weight: bold;");
+		menuLabel.getStyleClass().add("card-title");
+		menuBox.getChildren().add(menuLabel);
 
-        HBox spacer = new HBox();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
+		// Center: cart as TableView with columns Item, Qty, UnitPrice, Total
+		VBox centerBox = new VBox(10);
+		centerBox.setPadding(new Insets(10));
+		Label cartLabel = new Label("Cart");
 
-        topBar.getChildren().addAll(backBtn, title, spacer);
-        return topBar;
-    }
+		TableView<CartItem> cartTable = new TableView<>();
+		cartTable.setPrefHeight(400);
 
-    private VBox createMenuPanel() {
-        VBox menuBox = new VBox(10);
-        menuBox.setPadding(new Insets(10));
-        menuBox.setPrefWidth(280);
-        menuBox.getStyleClass().add("sidebar");
+		TableColumn<CartItem, String> itemCol = new TableColumn<>("Item");
+		itemCol.setCellValueFactory(new PropertyValueFactory<>("name"));
+		itemCol.setPrefWidth(240);
 
-        Label menuLabel = new Label("📋 Menu Items");
-        menuLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: white;");
-        menuBox.getChildren().add(menuLabel);
+		TableColumn<CartItem, Integer> qtyCol = new TableColumn<>("Qty");
+		qtyCol.setCellValueFactory(new PropertyValueFactory<>("qty"));
+		qtyCol.setPrefWidth(60);
+		// Make qty editable
+		qtyCol.setCellFactory(TextFieldTableCell.forTableColumn(new IntegerStringConverter()));
 
-        return menuBox;
-    }
+		TableColumn<CartItem, Double> unitCol = new TableColumn<>("Unit");
+		unitCol.setCellValueFactory(new PropertyValueFactory<>("unitPrice"));
+		unitCol.setPrefWidth(80);
 
-    private TableView<CartItem> createCartTable() {
-        TableView<CartItem> cartTable = new TableView<>();
-        cartTable.setPrefHeight(500);
-        cartTable.setEditable(true);
+		TableColumn<CartItem, Double> totalCol = new TableColumn<>("Total");
+		totalCol.setCellValueFactory(new PropertyValueFactory<>("total"));
+		totalCol.setPrefWidth(100);
 
-        TableColumn<CartItem, String> itemCol = new TableColumn<>("Item");
-        itemCol.setCellValueFactory(new PropertyValueFactory<>("name"));
-        itemCol.setPrefWidth(280);
+		cartTable.getColumns().add(itemCol);
+		cartTable.getColumns().add(qtyCol);
+		cartTable.getColumns().add(unitCol);
+		cartTable.getColumns().add(totalCol);
+		cartTable.setEditable(true);
+		// grand total property (declared early so handlers can reference it)
+		DoubleProperty grandTotal = new SimpleDoubleProperty(0);
 
-        TableColumn<CartItem, Integer> qtyCol = new TableColumn<>("Qty");
-        qtyCol.setCellValueFactory(new PropertyValueFactory<>("qty"));
-        qtyCol.setPrefWidth(80);
-        qtyCol.setCellFactory(TextFieldTableCell.forTableColumn(new IntegerStringConverter()));
+		qtyCol.setOnEditCommit(ev -> {
+			CartItem ci = ev.getRowValue();
+			Integer newQty = ev.getNewValue();
+			if (newQty != null && newQty > 0) {
+				ci.setQty(newQty);
+			}
+			cartTable.refresh();
+			double sum = 0; for (CartItem c : cartTable.getItems()) sum += c.getTotal();
+			grandTotal.set(sum);
+		});
 
-        TableColumn<CartItem, Double> unitCol = new TableColumn<>("Unit Price");
-        unitCol.setCellValueFactory(new PropertyValueFactory<>("unitPrice"));
-        unitCol.setPrefWidth(120);
+		centerBox.getChildren().addAll(cartLabel, cartTable);
 
-        TableColumn<CartItem, Double> totalCol = new TableColumn<>("Total");
-        totalCol.setCellValueFactory(new PropertyValueFactory<>("total"));
-        totalCol.setPrefWidth(120);
+		// Pending bills for this cashier
+		Label pendingLabel = new Label("Pending Orders (Kitchen)");
+		TableView<java.util.Map<String, Object>> pendingTable = new TableView<>();
+		TableColumn<java.util.Map<String, Object>, String> pbIdCol = new TableColumn<>("Bill ID");
+		pbIdCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(String.valueOf(c.getValue().get("id"))));
+		TableColumn<java.util.Map<String, Object>, String> pbTableCol = new TableColumn<>("Table");
+		pbTableCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(String.valueOf(c.getValue().get("table_number"))));
+		TableColumn<java.util.Map<String, Object>, String> pbPending = new TableColumn<>("Pending Items");
+		pbPending.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(String.valueOf(c.getValue().get("pending"))));
+		TableColumn<java.util.Map<String, Object>, String> pbTotal = new TableColumn<>("Total");
+		pbTotal.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(String.valueOf(c.getValue().get("total"))));
+		pendingTable.getColumns().addAll(java.util.Arrays.asList(pbIdCol, pbTableCol, pbPending, pbTotal));
+		pendingTable.setPrefHeight(140);
+		Button refreshPendingBtn = new Button("Refresh");
+		refreshPendingBtn.setOnAction(ev -> loadPendingBillsForCashier(pendingTable));
+		centerBox.getChildren().addAll(pendingLabel, pendingTable, refreshPendingBtn);
+		// double click a pending bill to show its items
+		pendingTable.setRowFactory(tv -> {
+			TableRow<java.util.Map<String,Object>> row = new TableRow<>();
+			row.setOnMouseClicked(ev -> {
+				if (!row.isEmpty() && ev.getClickCount() == 2) {
+					java.util.Map<String,Object> item = row.getItem();
+					String billId = String.valueOf(item.get("id"));
+					// query items for bill
+					StringBuilder sb = new StringBuilder();
+					String sql = "SELECT bi.qty, bi.unit_price, f.fName FROM bill_items bi JOIN food f ON bi.food_id = f.id WHERE bi.bill_id = ?";
+					try (Connection c = DriverManager.getConnection("jdbc:mysql://localhost:3306/restaurant?serverTimezone=UTC", "root", "")) {
+						try (PreparedStatement ps = c.prepareStatement(sql)) {
+							ps.setString(1, billId);
+							try (ResultSet rs = ps.executeQuery()) {
+								while (rs.next()) {
+									sb.append(rs.getString("fName")).append(" - qty: ").append(rs.getInt("qty")).append("\n");
+								}
+							}
+						}
+					} catch (Exception ex) { ex.printStackTrace(); sb.append("Could not load items: "+ex.getMessage()); }
+					Alert a = new Alert(Alert.AlertType.INFORMATION, sb.toString(), ButtonType.OK);
+					a.setTitle("Bill Items: " + billId);
+					a.setHeaderText("Items for bill " + billId);
+					a.showAndWait();
+				}
+			});
+			return row;
+		});
+		// initial load
+		loadPendingBillsForCashier(pendingTable);
+		// auto refresh for pending bills
+		Timeline pendRefresh = new Timeline(new KeyFrame(javafx.util.Duration.seconds(3), ev -> loadPendingBillsForCashier(pendingTable)));
+		pendRefresh.setCycleCount(Timeline.INDEFINITE);
+		pendRefresh.play();
 
-        cartTable.getColumns().addAll(itemCol, qtyCol, unitCol, totalCol);
-        return cartTable;
-    }
+		// Right: totals and actions
+		VBox rightBox = new VBox(12);
+		rightBox.setPadding(new Insets(10));
+		rightBox.setPrefWidth(240);
+		rightBox.getStyleClass().add("stat-card");
 
-    private VBox createActionsPanel(TableView<CartItem> cartTable, DoubleProperty grandTotal, Stage stage) {
-        VBox rightBox = new VBox(15);
-        rightBox.setPadding(new Insets(15));
-        rightBox.setPrefWidth(260);
-        rightBox.getStyleClass().add("stat-card");
+		Label totalLabel = new Label("Total: Rs0.00");
+		// bind listener for grand total now that totalLabel exists
+		totalLabel.getStyleClass().add("card-data");
+		grandTotal.addListener((obs, oldV, newV) -> totalLabel.setText(String.format("Total: Rs%.2f", newV.doubleValue())));
 
-        Label totalLabel = new Label("Total: Rs 0.00");
-        totalLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: bold;");
-        totalLabel.getStyleClass().add("card-data");
+		Button removeBtn = new Button("Remove Selected");
+		removeBtn.getStyleClass().add("nav-link");
+		Button checkoutBtn = new Button("Checkout");
+		checkoutBtn.getStyleClass().add("logout-button");
 
-        grandTotal.addListener((obs, oldV, newV) -> 
-            totalLabel.setText(String.format("Total: Rs %.2f", newV.doubleValue()))
-        );
+		// Add Table number input for this bill
+		Label tableLabel = new Label("Table #");
+		TextField tableField = new TextField();
+		tableField.setPromptText("Table #");
+		tableField.setPrefWidth(60);
 
-        Button removeBtn = new Button("🗑 Remove Selected");
-        removeBtn.setMaxWidth(Double.MAX_VALUE);
-        removeBtn.getStyleClass().add("nav-link");
-        removeBtn.setOnAction(e -> {
-            CartItem selected = cartTable.getSelectionModel().getSelectedItem();
-            if (selected != null) {
-                cartTable.getItems().remove(selected);
-                recalculateTotal(cartTable, grandTotal);
-            } else {
-                showInfo("No Selection", "Please select an item to remove.");
-            }
-        });
+		rightBox.getChildren().addAll(tableLabel, tableField, totalLabel, removeBtn, checkoutBtn);
 
-        Button clearBtn = new Button("🧹 Clear Cart");
-        clearBtn.setMaxWidth(Double.MAX_VALUE);
-        clearBtn.getStyleClass().add("nav-link");
-        clearBtn.setOnAction(e -> {
-            if (!cartTable.getItems().isEmpty()) {
-                Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-                confirm.setTitle("Clear Cart");
-                confirm.setHeaderText("Are you sure?");
-                confirm.setContentText("This will remove all items from the cart.");
-                confirm.showAndWait().ifPresent(response -> {
-                    if (response == ButtonType.OK) {
-                        cartTable.getItems().clear();
-                        grandTotal.set(0);
-                    }
-                });
-            }
-        });
+		// addItem now takes foodId, name, and price
+		java.util.function.Consumer<java.util.AbstractMap.SimpleEntry<Integer, java.util.AbstractMap.SimpleEntry<String, Double>>> addItem = 
+			(entry) -> {
+			int foodId = entry.getKey();
+			String name = entry.getValue().getKey();
+			double price = entry.getValue().getValue();
+			// check if item exists in cart
+			CartItem found = null;
+			for (CartItem ci : cartTable.getItems()) {
+				if (ci.getFoodId() == foodId) { found = ci; break; }
+			}
+			if (found != null) {
+				found.incrementQty();
+				// refresh table
+				cartTable.refresh();
+			} else {
+				cartTable.getItems().add(new CartItem(foodId, name, price));
+			}
+			// recompute grand total
+			double sum = 0;
+			for (CartItem ci : cartTable.getItems()) sum += ci.getTotal();
+			grandTotal.set(sum);
+		};
 
-        Button checkoutBtn = new Button("💳 Checkout");
-        checkoutBtn.setMaxWidth(Double.MAX_VALUE);
-        checkoutBtn.getStyleClass().add("logout-button");
-        checkoutBtn.setStyle("-fx-font-size: 16px; -fx-pref-height: 50px;");
-        checkoutBtn.setOnAction(e -> processCheckout(cartTable, grandTotal, stage));
+		// Load menu items from local MySQL database `restaurant.food`
+		// Default XAMPP credentials: user=root, password=""
+		try {
+			Class.forName("com.mysql.cj.jdbc.Driver");
+				try (java.sql.Connection conn = java.sql.DriverManager.getConnection(
+						"jdbc:mysql://localhost:3306/restaurant?serverTimezone=UTC", "root", "")) {
+					// Ensure `bills` has the required columns (migration for older DBs)
+					try {
+						com.coffee_shop.model.DbMigration.ensureColumnExists(conn, "bills", "cashier", "VARCHAR(100) DEFAULT NULL");
+						com.coffee_shop.model.DbMigration.ensureColumnExists(conn, "bills", "table_number", "VARCHAR(20) DEFAULT NULL");
+						com.coffee_shop.model.DbMigration.ensureColumnExists(conn, "kitchen_orders", "table_number", "VARCHAR(20) DEFAULT NULL");
+					} catch (Exception ex) {
+						ex.printStackTrace();
+					}
+				String sql = "SELECT id, fName, fPrice FROM food";
+				try (java.sql.PreparedStatement ps = conn.prepareStatement(sql);
+					 java.sql.ResultSet rs = ps.executeQuery()) {
+					while (rs.next()) {
+						int foodId = rs.getInt("id");
+						String name = rs.getString("fName");
+						double price = rs.getDouble("fPrice");
+						Button itemBtn = new Button(String.format("%s - Rs%.2f", name, price));
+						itemBtn.setMaxWidth(Double.MAX_VALUE);
+						itemBtn.getStyleClass().add("nav-link");
+						final int fId = foodId;
+						final String fName = name;
+						final double fPrice = price;
+						itemBtn.setOnAction(ev -> addItem.accept(
+							new java.util.AbstractMap.SimpleEntry<>(fId, 
+								new java.util.AbstractMap.SimpleEntry<>(fName, fPrice))
+						));
+						menuBox.getChildren().add(itemBtn);
+					}
+				}
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
+			menuBox.getChildren().add(new Label("Could not load menu from database."));
+		}
 
-        rightBox.getChildren().addAll(
-            new Label("Order Summary"),
-            new Separator(),
-            totalLabel,
-            new Separator(),
-            removeBtn,
-            clearBtn,
-            new Separator(),
-            checkoutBtn
-        );
+		removeBtn.setOnAction(e -> {
+			CartItem sel = cartTable.getSelectionModel().getSelectedItem();
+			if (sel != null) {
+				cartTable.getItems().remove(sel);
+				double sum = 0; for (CartItem ci : cartTable.getItems()) sum += ci.getTotal();
+				grandTotal.set(sum);
+			}
+		});
 
-        return rightBox;
-    }
+		checkoutBtn.setOnAction(e -> {
+			if (cartTable.getItems().isEmpty()) {
+				Alert a = new Alert(Alert.AlertType.INFORMATION, "Cart is empty.");
+				a.showAndWait();
+				return;
+			}
 
-    private void setupCartTableEditing(TableView<CartItem> cartTable, DoubleProperty grandTotal) {
-        TableColumn<CartItem, Integer> qtyCol = (TableColumn<CartItem, Integer>) cartTable.getColumns().get(1);
-        qtyCol.setOnEditCommit(event -> {
-            CartItem item = event.getRowValue();
-            Integer newQty = event.getNewValue();
-            if (newQty != null && newQty > 0) {
-                item.setQty(newQty);
-            } else {
-                showError("Invalid Quantity", "Quantity must be greater than 0.");
-                item.setQty(1);
-            }
-            cartTable.refresh();
-            recalculateTotal(cartTable, grandTotal);
-        });
-    }
+			// Ensure totals are up-to-date
+			double finalTotal = 0;
+			for (CartItem ci : cartTable.getItems()) finalTotal += ci.getTotal();
+			grandTotal.set(finalTotal);
 
-    private void loadMenuItems(VBox menuBox, TableView<CartItem> cartTable, DoubleProperty grandTotal) {
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS)) {
-            String sql = "SELECT id, fName, fPrice FROM food ORDER BY fName";
-            try (PreparedStatement ps = conn.prepareStatement(sql);
-                 ResultSet rs = ps.executeQuery()) {
-                
-                while (rs.next()) {
-                    int foodId = rs.getInt("id");
-                    String name = rs.getString("fName");
-                    double price = rs.getDouble("fPrice");
-                    
-                    Button itemBtn = new Button(String.format("%s\nRs %.2f", name, price));
-                    itemBtn.setMaxWidth(Double.MAX_VALUE);
-                    itemBtn.setMinHeight(50);
-                    itemBtn.getStyleClass().add("nav-link");
-                    itemBtn.setStyle("-fx-alignment: center;");
-                    
-                    itemBtn.setOnAction(e -> addItemToCart(cartTable, grandTotal, foodId, name, price));
-                    menuBox.getChildren().add(itemBtn);
-                }
-            }
-        } catch (Exception ex) {
-            ex.printStackTrace();
-            showError("Database Error", "Could not load menu items from database.");
-        }
-    }
+			// Build bill text
+			StringBuilder sb = new StringBuilder();
+			sb.append("COFFEE SHOP - E-BILL\n");
+			sb.append("Date: ").append(java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append("\n");
+			String tno = tableField.getText().trim();
+			if (tno != null && !tno.isEmpty()) sb.append("Table: ").append(tno).append("\n");
+			sb.append("Cashier: ").append(this.currentCashier).append("\n");
+			sb.append("-----------------------------------------------\n");
+			sb.append(String.format("%-30s %5s %10s %10s\n", "Item", "Qty", "Unit", "Total"));
+			sb.append("-----------------------------------------------\n");
+			for (CartItem ci : cartTable.getItems()) {
+				sb.append(String.format("%-30s %5d %10.2f %10.2f\n", ci.getName(), ci.getQty(), ci.getUnitPrice(), ci.getTotal()));
+			}
+			sb.append("-----------------------------------------------\n");
+			sb.append(String.format("%47s %10.2f\n", "GRAND TOTAL:", grandTotal.get()));
+			sb.append("\nThank you for your purchase!\n");
 
-    private void addItemToCart(TableView<CartItem> cartTable, DoubleProperty grandTotal, 
-                               int foodId, String name, double price) {
-        // Check if item already exists in cart
-        CartItem existingItem = null;
-        for (CartItem item : cartTable.getItems()) {
-            if (item.getFoodId() == foodId) {
-                existingItem = item;
-                break;
-            }
-        }
+			// Save to file using bill id (six-digit date) and sequence if needed
+			String billIdSix = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyMMdd"));
+			java.io.File dir = new java.io.File("ebills");
+			if (!dir.exists()) dir.mkdirs();
+			// determine sequence number for today's bills
+			int seq = 1;
+			// Prefer using the bills table to determine the next sequence to avoid relying on files.
+			try {
+				Class.forName("com.mysql.cj.jdbc.Driver");
+				try (java.sql.Connection _conn = java.sql.DriverManager.getConnection(
+						"jdbc:mysql://localhost:3306/restaurant?serverTimezone=UTC", "root", "")) {
+					String q = "SELECT id FROM bills WHERE id LIKE ?";
+					try (java.sql.PreparedStatement ps = _conn.prepareStatement(q)) {
+						ps.setString(1, billIdSix + "_%");
+						try (java.sql.ResultSet rs = ps.executeQuery()) {
+							int max = 0;
+							while (rs.next()) {
+								String id = rs.getString("id");
+								int idx = id.lastIndexOf('_');
+								if (idx >= 0 && idx + 1 < id.length()) {
+									try {
+										int n = Integer.parseInt(id.substring(idx + 1));
+										if (n > max) max = n;
+									} catch (NumberFormatException ex) {
+										// ignore malformed ids
+									}
+								}
+							}
+							seq = max + 1;
+						}
+					}
+				}
+			} catch (Exception ex) {
+				// fallback to file count if DB check fails
+				java.io.File[] matches = dir.listFiles((d, name) -> name.startsWith("bill_" + billIdSix + "_") && name.endsWith(".txt"));
+				if (matches != null) seq = matches.length + 1;
+			}
+			String billIdFull = String.format("%s_%d", billIdSix, seq);
+			java.io.File out = new java.io.File(dir, String.format("bill_%s_%d.txt", billIdSix, seq));
 
-        if (existingItem != null) {
-            existingItem.incrementQty();
-            cartTable.refresh();
-        } else {
-            cartTable.getItems().add(new CartItem(foodId, name, price));
-        }
+			// Persist bill and items to the database (create tables if needed)
+			try {
+				Class.forName("com.mysql.cj.jdbc.Driver");
+					try (java.sql.Connection conn = java.sql.DriverManager.getConnection(
+						"jdbc:mysql://localhost:3306/restaurant?serverTimezone=UTC", "root", "")) {
+					String createBills = "CREATE TABLE IF NOT EXISTS bills (id VARCHAR(64) PRIMARY KEY, bill_date DATETIME, total DOUBLE, cashier VARCHAR(100), table_number VARCHAR(20))";
+					String createItems = "CREATE TABLE IF NOT EXISTS bill_items (id INT AUTO_INCREMENT PRIMARY KEY, bill_id VARCHAR(64), food_id INT, qty INT, unit_price DOUBLE, total DOUBLE, FOREIGN KEY(food_id) REFERENCES food(id), INDEX(bill_id))";
+					try (java.sql.Statement s = conn.createStatement()) {
+						s.execute(createBills);
+						s.execute(createItems);
+					}
+					String insertBill = "INSERT INTO bills (id, bill_date, total, cashier, table_number) VALUES (?, NOW(), ?, ?, ?)";
+					try (java.sql.PreparedStatement ps = conn.prepareStatement(insertBill)) {
+						ps.setString(1, billIdFull);
+						ps.setDouble(2, grandTotal.get());
+						ps.setString(3, this.currentCashier);
+						ps.setString(4, tableField.getText().trim());
+						ps.executeUpdate();
+					}
 
-        recalculateTotal(cartTable, grandTotal);
-    }
+					String insertItem = "INSERT INTO bill_items (bill_id, food_id, qty, unit_price, total) VALUES (?, ?, ?, ?, ?)";
+					try (java.sql.PreparedStatement psi = conn.prepareStatement(insertItem)) {
+						for (CartItem ci : cartTable.getItems()) {
+							psi.setString(1, billIdFull);
+							psi.setInt(2, ci.getFoodId());
+							psi.setInt(3, ci.getQty());
+							psi.setDouble(4, ci.getUnitPrice());
+							psi.setDouble(5, ci.getTotal());
+							psi.addBatch();
+						}
+						psi.executeBatch();
+						// --- START: send items to kitchen_orders ---
+						try {
+							com.coffee_shop.model.KitchenOrdersRepository kitchenRepo = new com.coffee_shop.model.KitchenOrdersRepository();
+							java.util.List<com.coffee_shop.model.KitchenOrdersRepository.OrderItem> items = new java.util.ArrayList<>();
+							for (CartItem ci : cartTable.getItems()) {
+								items.add(new com.coffee_shop.model.KitchenOrdersRepository.OrderItem(ci.getFoodId(), ci.getName(), ci.getQty()));
+							}
+							try {
+								kitchenRepo.insertKitchenOrders(billIdFull, items, tableField.getText().trim());
+								System.out.println("Kitchen orders sent for bill: " + billIdFull);
+							} catch (Exception bun) {
+								// If the kitchen write fails, we log but do not stop the bill
+								System.err.println("Could not send kitchen orders for bill " + billIdFull + ": " + bun.getMessage());
+								bun.printStackTrace();
+							}
+						} catch (Exception kitchenEx) {
+							kitchenEx.printStackTrace();
+						}
+// --- END: send items to kitchen_orders ---
 
-    private void recalculateTotal(TableView<CartItem> cartTable, DoubleProperty grandTotal) {
-        double sum = cartTable.getItems().stream()
-                              .mapToDouble(CartItem::getTotal)
-                              .sum();
-        grandTotal.set(sum);
-    }
+					} 
+				}
+			} catch (Exception ex) {
+				ex.printStackTrace();
+			}
 
-    private void processCheckout(TableView<CartItem> cartTable, DoubleProperty grandTotal, Stage stage) {
-        if (cartTable.getItems().isEmpty()) {
-            showInfo("Empty Cart", "Please add items to cart before checkout.");
-            return;
-        }
+			try (java.io.PrintWriter pw = new java.io.PrintWriter(new java.io.OutputStreamWriter(new java.io.FileOutputStream(out), java.nio.charset.StandardCharsets.UTF_8))) {
+				pw.println("BILL ID: " + billIdFull);
+				pw.print(sb.toString());
+				pw.flush();
+			} catch (Exception ex) {
+				ex.printStackTrace();
+			}
+			// Make the generated bill file read-only
+			try {
+				out.setWritable(false);
+			} catch (Exception ex) {
+				// ignore if unable to change permissions on some platforms
+			}
 
-        // Generate bill ID
-        String billId = generateBillId();
-        
-        // Save to database
-        boolean saved = saveBillToDatabase(billId, cartTable, grandTotal.get());
-        
-        if (!saved) {
-            showError("Checkout Failed", "Could not save bill to database.");
-            return;
-        }
+			// Show bill in popup with Print button
+			Stage billStage = new Stage();
+			billStage.initOwner(stage);
+			billStage.initModality(Modality.APPLICATION_MODAL);
+			billStage.setTitle("E-Bill - " + billIdSix + "_" + seq);
 
-        // Generate bill text
-        String billText = generateBillText(billId, cartTable, grandTotal.get());
-        
-        // Save to file
-        saveBillToFile(billId, billText);
-        
-        // Show bill popup
-        showBillPopup(stage, billId, billText, cartTable, grandTotal);
-    }
+			// show bill id at top of popup as well
+			String popupText = "BILL ID: " + billIdSix + "_" + seq + "\n\n" + sb.toString();
+			TextArea ta = new TextArea(popupText);
+			ta.setEditable(false);
+			ta.setWrapText(true);
+			ta.setPrefWidth(580);
+			ta.setPrefHeight(520);
 
-    private String generateBillId() {
-        String datePrefix = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyMMdd"));
-        int sequence = 1;
-        
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS)) {
-            String sql = "SELECT id FROM bills WHERE id LIKE ? ORDER BY id DESC LIMIT 1";
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setString(1, datePrefix + "_%");
-                try (ResultSet rs = ps.executeQuery()) {
-                    if (rs.next()) {
-                        String lastId = rs.getString("id");
-                        int idx = lastId.lastIndexOf('_');
-                        if (idx >= 0) {
-                            try {
-                                sequence = Integer.parseInt(lastId.substring(idx + 1)) + 1;
-                            } catch (NumberFormatException e) {
-                                sequence = 1;
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-        
-        return String.format("%s_%d", datePrefix, sequence);
-    }
+			Button printBtn = new Button("Print");
+			Button closeBtn = new Button("Close");
 
-    private boolean saveBillToDatabase(String billId, TableView<CartItem> cartTable, double total) {
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS)) {
-            conn.setAutoCommit(false);
-            
-            try {
-                // Insert bill
-                String billSql = "INSERT INTO bills (id, bill_date, total) VALUES (?, NOW(), ?)";
-                try (PreparedStatement ps = conn.prepareStatement(billSql)) {
-                    ps.setString(1, billId);
-                    ps.setDouble(2, total);
-                    ps.executeUpdate();
-                }
-                
-                // Insert bill items
-                String itemSql = "INSERT INTO bill_items (bill_id, food_id, qty, unit_price, total) VALUES (?, ?, ?, ?, ?)";
-                try (PreparedStatement ps = conn.prepareStatement(itemSql)) {
-                    for (CartItem item : cartTable.getItems()) {
-                        ps.setString(1, billId);
-                        ps.setInt(2, item.getFoodId());
-                        ps.setInt(3, item.getQty());
-                        ps.setDouble(4, item.getUnitPrice());
-                        ps.setDouble(5, item.getTotal());
-                        ps.addBatch();
-                    }
-                    ps.executeBatch();
-                }
-                
-                conn.commit();
-                return true;
-            } catch (Exception e) {
-                conn.rollback();
-                throw e;
-            }
-        } catch (Exception ex) {
-            ex.printStackTrace();
-            return false;
-        }
-    }
+			HBox buttonsBox = new HBox(10, printBtn, closeBtn);
+			buttonsBox.setAlignment(Pos.CENTER_RIGHT);
 
-    private String generateBillText(String billId, TableView<CartItem> cartTable, double total) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("═══════════════════════════════════════════════\n");
-        sb.append("           COFFEE SHOP E-BILL\n");
-        sb.append("═══════════════════════════════════════════════\n");
-        sb.append("Bill ID: ").append(billId).append("\n");
-        sb.append("Date: ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append("\n");
-        sb.append("───────────────────────────────────────────────\n");
-        sb.append(String.format("%-30s %5s %10s %10s\n", "Item", "Qty", "Unit", "Total"));
-        sb.append("───────────────────────────────────────────────\n");
-        
-        for (CartItem item : cartTable.getItems()) {
-            sb.append(String.format("%-30s %5d %10.2f %10.2f\n", 
-                item.getName(), item.getQty(), item.getUnitPrice(), item.getTotal()));
-        }
-        
-        sb.append("═══════════════════════════════════════════════\n");
-        sb.append(String.format("%52s %.2f\n", "GRAND TOTAL: Rs", total));
-        sb.append("═══════════════════════════════════════════════\n");
-        sb.append("\n         Thank you for your purchase!\n");
-        sb.append("            Please visit again!\n");
-        sb.append("═══════════════════════════════════════════════\n");
-        
-        return sb.toString();
-    }
+			VBox billRoot = new VBox(10, ta, buttonsBox);
+			billRoot.setPadding(new Insets(10));
 
-    private void saveBillToFile(String billId, String billText) {
-        try {
-            File dir = new File("ebills");
-            if (!dir.exists()) dir.mkdirs();
-            
-            File billFile = new File(dir, "bill_" + billId + ".txt");
-            try (PrintWriter pw = new PrintWriter(new OutputStreamWriter(
-                    new FileOutputStream(billFile), "UTF-8"))) {
-                pw.print(billText);
-            }
-            
-            billFile.setWritable(false);
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-    }
+			Scene billScene = new Scene(billRoot, 600, 600);
+			try {
+				String css = getClass().getResource("/dashboard.css").toExternalForm();
+				billScene.getStylesheets().add(css);
+			} catch (Exception ex) {
+				// ignore css loading for popup
+			}
 
-    private void showBillPopup(Stage owner, String billId, String billText, 
-                               TableView<CartItem> cartTable, DoubleProperty grandTotal) {
-        Stage billStage = new Stage();
-        billStage.initOwner(owner);
-        billStage.initModality(Modality.APPLICATION_MODAL);
-        billStage.setTitle("E-Bill - " + billId);
+			billStage.setScene(billScene);
+			billStage.show();
 
-        TextArea billArea = new TextArea(billText);
-        billArea.setEditable(false);
-        billArea.setWrapText(true);
-        billArea.setPrefSize(600, 500);
-        billArea.setStyle("-fx-font-family: 'Courier New', monospace; -fx-font-size: 13px;");
+			printBtn.setOnAction(ev -> {
+				PrinterJob job = PrinterJob.createPrinterJob();
+				if (job != null) {
+					boolean proceed = job.showPrintDialog(stage);
+					if (proceed) {
+						boolean printed = job.printPage(ta);
+						if (printed) job.endJob();
+					}
+				}
+			});
 
-        Button printBtn = new Button("🖨 Print");
-        printBtn.getStyleClass().add("logout-button");
-        printBtn.setOnAction(e -> {
-            PrinterJob job = PrinterJob.createPrinterJob();
-            if (job != null && job.showPrintDialog(billStage)) {
-                if (job.printPage(billArea)) {
-                    job.endJob();
-                    showInfo("Print Success", "Bill printed successfully!");
-                }
-            }
-        });
+			closeBtn.setOnAction(ev -> {
+				billStage.close();
+				// clear cart after closing popup (we keep a pending list in the cashier dashboard)
+				cartTable.getItems().clear();
+				grandTotal.set(0);
+			});
+		});
 
-        Button closeBtn = new Button("✓ Close");
-        closeBtn.getStyleClass().add("nav-link");
-        closeBtn.setOnAction(e -> {
-            billStage.close();
-            cartTable.getItems().clear();
-            grandTotal.set(0);
-        });
+		// Compose layout
+		BorderPane content = new BorderPane();
+		content.setLeft(menuBox);
+		content.setCenter(centerBox);
+		content.setRight(rightBox);
 
-        HBox buttonBox = new HBox(10, printBtn, closeBtn);
-        buttonBox.setAlignment(Pos.CENTER_RIGHT);
-        buttonBox.setPadding(new Insets(10));
+		root.setTop(topBar);
+		root.setCenter(content);
 
-        VBox root = new VBox(10, billArea, buttonBox);
-        root.setPadding(new Insets(15));
+		Scene scene = new Scene(root, 1100, 700);
+		try {
+			String css = getClass().getResource("/dashboard.css").toExternalForm();
+			scene.getStylesheets().add(css);
+		} catch (Exception ex) {
+			System.err.println("Could not load CSS for cashier: " + ex.getMessage());
+		}
 
-        Scene scene = new Scene(root);
-        loadCSS(scene);
-        billStage.setScene(scene);
-        billStage.show();
-    }
+		stage.setTitle("Coffee Shop POS - Cashier");
+		stage.setScene(scene);
+		stage.show();
+	}
 
-    private void loadCSS(Scene scene) {
-        try {
-            String css = getClass().getResource("/dashboard.css").toExternalForm();
-            scene.getStylesheets().add(css);
-        } catch (Exception ex) {
-            System.err.println("CSS not found: " + ex.getMessage());
-        }
-    }
-
-    private void showError(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle(title);
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
-    }
-
-    private void showInfo(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle(title);
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
-    }
+	private void loadPendingBillsForCashier(javafx.scene.control.TableView<java.util.Map<String, Object>> pendingTable) {
+		java.util.List<java.util.Map<String, Object>> rows = new java.util.ArrayList<>();
+		String sql = "SELECT b.id, b.total, b.table_number, SUM(CASE WHEN ko.status = 'PENDING' THEN 1 ELSE 0 END) as pending FROM bills b JOIN kitchen_orders ko ON ko.bill_id=b.id WHERE b.cashier = ? GROUP BY b.id, b.total, b.table_number HAVING pending > 0";
+		try (Connection c = DriverManager.getConnection("jdbc:mysql://localhost:3306/restaurant?serverTimezone=UTC", "root", "")) {
+			try (PreparedStatement ps = c.prepareStatement(sql)) {
+				ps.setString(1, this.currentCashier);
+				try (ResultSet rs = ps.executeQuery()) {
+					while (rs.next()) {
+						java.util.Map<String, Object> m = new java.util.HashMap<>();
+						m.put("id", rs.getString("id"));
+						m.put("total", rs.getDouble("total"));
+						m.put("table_number", rs.getString("table_number"));
+						m.put("pending", rs.getInt("pending"));
+						rows.add(m);
+					}
+				}
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+		pendingTable.getItems().setAll(rows);
+	}
 }

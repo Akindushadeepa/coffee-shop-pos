@@ -1,5 +1,6 @@
 package com.coffee_shop.view;
 
+import com.coffee_shop.model.*;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
@@ -8,37 +9,44 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.control.cell.TextFieldTableCell;
+import javafx.scene.control.cell.CheckBoxTableCell;
+import javafx.scene.control.cell.ComboBoxTableCell;
 import javafx.scene.layout.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.util.converter.DoubleStringConverter;
-import javafx.print.PrinterJob;
 
+import java.io.*;
+import java.nio.file.*;
 import java.sql.*;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.io.File;
-import java.nio.file.Files;
-import java.nio.charset.StandardCharsets;
+import java.time.*;
+import java.util.*;
 
 public class CoffeeShopDashboard {
 
     private static final String DB_URL = "jdbc:mysql://localhost:3306/restaurant?serverTimezone=UTC";
     private static final String DB_USER = "root";
     private static final String DB_PASS = "";
+    private static final String IMAGES_DIR = "item_images";
 
     public static class FoodItem {
         private final int id;
         private String name;
         private double price;
+        private String imagePath;
+        private boolean available;
+        private String category;
 
-        public FoodItem(int id, String name, double price) {
+        public FoodItem(int id, String name, double price, String imagePath, boolean available, String category) {
             this.id = id;
             this.name = name;
             this.price = price;
+            this.imagePath = imagePath;
+            this.available = available;
+            this.category = category;
         }
 
         public int getId() { return id; }
@@ -46,23 +54,53 @@ public class CoffeeShopDashboard {
         public void setName(String name) { this.name = name; }
         public double getPrice() { return price; }
         public void setPrice(double price) { this.price = price; }
+        public String getImagePath() { return imagePath; }
+        public void setImagePath(String imagePath) { this.imagePath = imagePath; }
+        public boolean isAvailable() { return available; }
+        public void setAvailable(boolean available) { this.available = available; }
+        public String getCategory() { return category; }
+        public void setCategory(String category) { this.category = category; }
+    }
+
+    public static class UserRow {
+        private String username;
+        private String password;
+        private String role;
+
+        public UserRow(String username, String password, String role) {
+            this.username = username;
+            this.password = password;
+            this.role = role;
+        }
+
+        public String getUsername() { return username; }
+        public void setUsername(String username) { this.username = username; }
+        public String getPassword() { return password; }
+        public void setPassword(String password) { this.password = password; }
+        public String getRole() { return role; }
+        public void setRole(String role) { this.role = role; }
     }
 
     private TableView<FoodItem> itemsTable;
     private ObservableList<FoodItem> items = FXCollections.observableArrayList();
+    private TableView<UserRow> usersTable;
+    private ObservableList<UserRow> users = FXCollections.observableArrayList();
+    private UsersRepository usersRepo = new UsersRepository();
     private Stage primaryStage;
-    private TextField nameField;
-    private TextField priceField;
+    private TextField nameField, priceField;
+    private ComboBox<String> categoryCombo;
+    private CheckBox availableCheck;
+    private Label imagePreviewLabel;
+    private String selectedImagePath = null;
 
     public void start(Stage stage) {
         this.primaryStage = stage;
+        new File(IMAGES_DIR).mkdirs();
+        
         BorderPane root = new BorderPane();
         root.getStyleClass().add("main-content-area");
 
-        // Top bar with title and logout button
         HBox topBar = createTopBar(stage);
-
-        // Tab pane for different sections
         TabPane tabs = new TabPane();
         tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
 
@@ -72,12 +110,15 @@ public class CoffeeShopDashboard {
         Tab salesTab = new Tab("📊 Sales Reports");
         salesTab.setContent(createSalesReportsPane());
 
-        tabs.getTabs().addAll(manageTab, salesTab);
+        Tab usersTab = new Tab("👥 Manage Users");
+        usersTab.setContent(createManageUsersPane());
+
+        tabs.getTabs().addAll(manageTab, salesTab, usersTab);
 
         root.setTop(topBar);
         root.setCenter(tabs);
 
-        Scene scene = new Scene(root, 1100, 750);
+        Scene scene = new Scene(root, 1200, 800);
         loadCSS(scene);
 
         stage.setTitle("Coffee Shop - Admin Dashboard");
@@ -95,8 +136,7 @@ public class CoffeeShopDashboard {
         backBtn.getStyleClass().add("nav-link");
         backBtn.setOnAction(e -> {
             try {
-                CoffeeShopApp app = new CoffeeShopApp();
-                app.start(stage);
+                new CoffeeShopApp().start(stage);
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
@@ -104,7 +144,6 @@ public class CoffeeShopDashboard {
 
         Label title = new Label("👨‍💼 Admin Dashboard");
         title.setStyle("-fx-font-size: 20px; -fx-font-weight: bold;");
-        title.getStyleClass().add("page-title");
 
         HBox spacer = new HBox();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -117,26 +156,20 @@ public class CoffeeShopDashboard {
         VBox root = new VBox(15);
         root.setPadding(new Insets(20));
 
-        // Title section
         Label sectionTitle = new Label("Menu Items Management");
         sectionTitle.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
 
-        // Add new item form (prominent card)
         VBox addItemCard = createAddItemCard();
-
-        // Items table
         VBox tableSection = createItemsTableSection();
 
         root.getChildren().addAll(sectionTitle, addItemCard, tableSection);
-
-        // Load initial data
         loadItemsFromDb();
 
         return root;
     }
 
     private VBox createAddItemCard() {
-        VBox card = new VBox(12);
+        VBox card = new VBox(15);
         card.setPadding(new Insets(20));
         card.getStyleClass().add("stat-card");
         card.setStyle("-fx-background-color: #E3F2FD; -fx-border-color: #2196F3; -fx-border-width: 2px;");
@@ -147,163 +180,127 @@ public class CoffeeShopDashboard {
         GridPane form = new GridPane();
         form.setHgap(15);
         form.setVgap(12);
-        form.setPadding(new Insets(10, 0, 0, 0));
 
-        // Item Name
         Label nameLabel = new Label("Item Name:");
-        nameLabel.setStyle("-fx-font-weight: bold;");
         nameField = new TextField();
-        nameField.setPromptText("e.g., Cappuccino, Sandwich");
-        nameField.setPrefWidth(300);
-        nameField.setStyle("-fx-font-size: 14px; -fx-pref-height: 35px;");
+        nameField.setPromptText("e.g., Cappuccino");
 
-        // Price
-        Label priceLabel = new Label("Price (Rs):");
-        priceLabel.setStyle("-fx-font-weight: bold;");
+        Label catLabel = new Label("Category:");
+        categoryCombo = new ComboBox<>();
+        categoryCombo.getItems().addAll("Hot Coffee", "Cold Coffee", "Hot Drinks", "Bakery", "Food", "Dessert");
+        categoryCombo.setValue("Hot Coffee");
+
+        Label priceLabel = new Label("Price:");
         priceField = new TextField();
-        priceField.setPromptText("e.g., 350.00");
-        priceField.setPrefWidth(150);
-        priceField.setStyle("-fx-font-size: 14px; -fx-pref-height: 35px;");
+        priceField.setPromptText("350.00");
 
-        // Add validation for price field (numbers only)
-        priceField.textProperty().addListener((obs, oldVal, newVal) -> {
-            if (!newVal.matches("\\d*(\\.\\d*)?")) {
-                priceField.setText(oldVal);
-            }
-        });
+        availableCheck = new CheckBox("Available");
+        availableCheck.setSelected(true);
 
-        // Buttons
-        Button addBtn = new Button("✓ Add Item");
-        addBtn.getStyleClass().add("logout-button");
-        addBtn.setStyle("-fx-font-size: 14px; -fx-pref-height: 40px; -fx-pref-width: 140px;");
+        Button uploadBtn = new Button("📁 Image");
+        uploadBtn.setOnAction(e -> chooseImage());
+        
+        imagePreviewLabel = new Label("No image");
+        
+        Button addBtn = new Button("✓ Add");
         addBtn.setOnAction(e -> handleAddItem());
 
         Button clearBtn = new Button("✗ Clear");
-        clearBtn.getStyleClass().add("nav-link");
-        clearBtn.setStyle("-fx-font-size: 14px; -fx-pref-height: 40px; -fx-pref-width: 100px;");
-        clearBtn.setOnAction(e -> {
-            nameField.clear();
-            priceField.clear();
-            nameField.requestFocus();
-        });
-
-        HBox buttonBox = new HBox(10, addBtn, clearBtn);
-        buttonBox.setAlignment(Pos.CENTER_LEFT);
+        clearBtn.setOnAction(e -> clearForm());
 
         form.add(nameLabel, 0, 0);
         form.add(nameField, 1, 0);
-        form.add(priceLabel, 2, 0);
-        form.add(priceField, 3, 0);
-        form.add(buttonBox, 1, 1, 3, 1);
+        form.add(catLabel, 2, 0);
+        form.add(categoryCombo, 3, 0);
+        form.add(priceLabel, 0, 1);
+        form.add(priceField, 1, 1);
+        form.add(availableCheck, 2, 1);
+        form.add(uploadBtn, 0, 2);
+        form.add(imagePreviewLabel, 1, 2);
+        form.add(addBtn, 0, 3);
+        form.add(clearBtn, 1, 3);
 
-        // Quick tips
-        Label tipsLabel = new Label("💡 Tip: Double-click on table cells below to edit existing items");
-        tipsLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #666666; -fx-font-style: italic;");
-
-        card.getChildren().addAll(cardTitle, form, tipsLabel);
+        card.getChildren().addAll(cardTitle, form);
         return card;
+    }
+
+    private void chooseImage() {
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Select Image");
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Images", "*.png", "*.jpg", "*.jpeg"));
+        File file = fc.showOpenDialog(primaryStage);
+        if (file != null) {
+            try {
+                String fileName = System.currentTimeMillis() + "_" + file.getName();
+                Path target = Paths.get(IMAGES_DIR, fileName);
+                Files.copy(file.toPath(), target, StandardCopyOption.REPLACE_EXISTING);
+                selectedImagePath = fileName;
+                imagePreviewLabel.setText("✓ " + file.getName());
+            } catch (IOException ex) {
+                showError("Error", "Could not save image");
+            }
+        }
+    }
+
+    private void clearForm() {
+        nameField.clear();
+        priceField.clear();
+        categoryCombo.setValue("Hot Coffee");
+        availableCheck.setSelected(true);
+        selectedImagePath = null;
+        imagePreviewLabel.setText("No image");
     }
 
     private VBox createItemsTableSection() {
         VBox section = new VBox(10);
 
-        // Section header with item count
-        HBox header = new HBox(10);
-        header.setAlignment(Pos.CENTER_LEFT);
-
-        Label tableTitle = new Label("Current Menu Items");
-        tableTitle.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
-
-        Label itemCount = new Label();
-        itemCount.setStyle("-fx-font-size: 14px; -fx-text-fill: #666666;");
-        items.addListener((javafx.collections.ListChangeListener.Change<? extends FoodItem> c) -> {
-            itemCount.setText("(" + items.size() + " items)");
-        });
-
-        Button refreshBtn = new Button("🔄 Refresh");
-        refreshBtn.getStyleClass().add("nav-link");
-        refreshBtn.setOnAction(e -> loadItemsFromDb());
-
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-
-        header.getChildren().addAll(tableTitle, itemCount, spacer, refreshBtn);
-
-        // Create table
         itemsTable = new TableView<>();
         itemsTable.setEditable(true);
-        itemsTable.setPrefHeight(400);
 
-        // ID Column
         TableColumn<FoodItem, Integer> idCol = new TableColumn<>("ID");
         idCol.setCellValueFactory(new PropertyValueFactory<>("id"));
-        idCol.setPrefWidth(80);
-        idCol.setStyle("-fx-alignment: CENTER;");
+        idCol.setPrefWidth(50);
 
-        // Name Column (editable)
-        TableColumn<FoodItem, String> nameCol = new TableColumn<>("Item Name");
+        TableColumn<FoodItem, String> nameCol = new TableColumn<>("Name");
         nameCol.setCellValueFactory(new PropertyValueFactory<>("name"));
-        nameCol.setPrefWidth(400);
-        nameCol.setCellFactory(TextFieldTableCell.forTableColumn());
-        nameCol.setOnEditCommit(event -> {
-            FoodItem item = event.getRowValue();
-            String newName = event.getNewValue();
-            if (newName != null && !newName.trim().isEmpty()) {
-                item.setName(newName.trim());
-                updateFoodInDb(item);
-                showInfo("Updated", "Item name updated successfully!");
-            } else {
-                showError("Invalid Name", "Item name cannot be empty!");
-                loadItemsFromDb();
-            }
-        });
+        nameCol.setPrefWidth(200);
 
-        // Price Column (editable)
-        TableColumn<FoodItem, Double> priceCol = new TableColumn<>("Price (Rs)");
+        TableColumn<FoodItem, String> catCol = new TableColumn<>("Category");
+        catCol.setCellValueFactory(new PropertyValueFactory<>("category"));
+        catCol.setPrefWidth(120);
+
+        TableColumn<FoodItem, Double> priceCol = new TableColumn<>("Price");
         priceCol.setCellValueFactory(new PropertyValueFactory<>("price"));
-        priceCol.setPrefWidth(150);
-        priceCol.setStyle("-fx-alignment: CENTER-RIGHT;");
-        priceCol.setCellFactory(TextFieldTableCell.forTableColumn(new DoubleStringConverter()));
-        priceCol.setOnEditCommit(event -> {
-            FoodItem item = event.getRowValue();
-            Double newPrice = event.getNewValue();
-            if (newPrice != null && newPrice > 0) {
-                item.setPrice(newPrice);
-                updateFoodInDb(item);
-                showInfo("Updated", "Price updated successfully!");
-            } else {
-                showError("Invalid Price", "Price must be greater than 0!");
-                loadItemsFromDb();
-            }
-        });
+        priceCol.setPrefWidth(100);
 
-        // Actions Column
+        TableColumn<FoodItem, Boolean> availCol = new TableColumn<>("Available");
+        availCol.setCellValueFactory(new PropertyValueFactory<>("available"));
+        availCol.setPrefWidth(80);
+
         TableColumn<FoodItem, Void> actionsCol = new TableColumn<>("Actions");
         actionsCol.setPrefWidth(150);
         actionsCol.setCellFactory(col -> new TableCell<FoodItem, Void>() {
             private final Button deleteBtn = new Button("🗑 Delete");
-
             {
-                deleteBtn.getStyleClass().add("nav-link");
-                deleteBtn.setStyle("-fx-background-color: #f44336; -fx-text-fill: white;");
                 deleteBtn.setOnAction(e -> {
                     FoodItem item = getTableView().getItems().get(getIndex());
                     handleDeleteItem(item);
                 });
             }
-
             @Override
             protected void updateItem(Void item, boolean empty) {
                 super.updateItem(item, empty);
                 setGraphic(empty ? null : deleteBtn);
-                setAlignment(Pos.CENTER);
             }
         });
 
-        itemsTable.getColumns().addAll(idCol, nameCol, priceCol, actionsCol);
+        itemsTable.getColumns().addAll(idCol, nameCol, catCol, priceCol, availCol, actionsCol);
         itemsTable.setItems(items);
 
-        section.getChildren().addAll(header, itemsTable);
+        Button refreshBtn = new Button("🔄 Refresh");
+        refreshBtn.setOnAction(e -> loadItemsFromDb());
+
+        section.getChildren().addAll(refreshBtn, itemsTable);
         return section;
     }
 
@@ -311,59 +308,174 @@ public class CoffeeShopDashboard {
         String name = nameField.getText().trim();
         String priceText = priceField.getText().trim();
 
-        // Validation
-        if (name.isEmpty()) {
-            showError("Validation Error", "Please enter item name!");
-            nameField.requestFocus();
-            return;
-        }
-
-        if (priceText.isEmpty()) {
-            showError("Validation Error", "Please enter price!");
-            priceField.requestFocus();
+        if (name.isEmpty() || priceText.isEmpty()) {
+            showError("Error", "Fill all fields");
             return;
         }
 
         try {
             double price = Double.parseDouble(priceText);
-            if (price <= 0) {
-                showError("Validation Error", "Price must be greater than 0!");
-                priceField.requestFocus();
-                return;
-            }
-
-            // Add to database
-            boolean success = addFoodToDb(name, price);
-            if (success) {
-                showSuccess("Success!", "Item '" + name + "' added successfully!");
-                nameField.clear();
-                priceField.clear();
-                nameField.requestFocus();
+            if (addFoodToDb(name, price, selectedImagePath, categoryCombo.getValue(), availableCheck.isSelected())) {
+                showSuccess("Success", "Item added!");
+                clearForm();
                 loadItemsFromDb();
-            } else {
-                showError("Error", "Failed to add item to database!");
             }
-
         } catch (NumberFormatException ex) {
-            showError("Invalid Price", "Please enter a valid number for price!");
-            priceField.requestFocus();
+            showError("Error", "Invalid price");
         }
     }
 
     private void handleDeleteItem(FoodItem item) {
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-        confirm.setTitle("Confirm Delete");
-        confirm.setHeaderText("Delete Item: " + item.getName());
-        confirm.setContentText("Are you sure you want to delete this item?\nThis action cannot be undone.");
-
+        confirm.setTitle("Delete");
+        confirm.setContentText("Delete " + item.getName() + "?");
         confirm.showAndWait().ifPresent(response -> {
             if (response == ButtonType.OK) {
-                boolean success = deleteFoodFromDb(item.getId());
-                if (success) {
-                    showInfo("Deleted", "Item deleted successfully!");
-                    loadItemsFromDb();
-                } else {
-                    showError("Error", "Failed to delete item!");
+                deleteFoodFromDb(item.getId());
+                loadItemsFromDb();
+            }
+        });
+    }
+
+    private VBox createManageUsersPane() {
+        VBox root = new VBox(15);
+        root.setPadding(new Insets(20));
+
+        Label title = new Label("User Management");
+        title.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
+
+        usersTable = new TableView<>();
+        usersTable.setEditable(true);
+
+        TableColumn<UserRow, String> usernameCol = new TableColumn<>("Username");
+        usernameCol.setCellValueFactory(new PropertyValueFactory<>("username"));
+        usernameCol.setPrefWidth(250);
+        usernameCol.setCellFactory(TextFieldTableCell.forTableColumn());
+        usernameCol.setOnEditCommit(e -> e.getRowValue().setUsername(e.getNewValue()));
+
+        TableColumn<UserRow, String> passwordCol = new TableColumn<>("Password");
+        passwordCol.setCellValueFactory(new PropertyValueFactory<>("password"));
+        passwordCol.setPrefWidth(250);
+        passwordCol.setCellFactory(TextFieldTableCell.forTableColumn());
+        passwordCol.setOnEditCommit(e -> e.getRowValue().setPassword(e.getNewValue()));
+
+        TableColumn<UserRow, String> roleCol = new TableColumn<>("Role");
+        roleCol.setCellValueFactory(new PropertyValueFactory<>("role"));
+        roleCol.setPrefWidth(200);
+        roleCol.setCellFactory(ComboBoxTableCell.forTableColumn("ADMIN", "CASHIER", "KITCHEN"));
+        roleCol.setOnEditCommit(e -> e.getRowValue().setRole(e.getNewValue()));
+
+        usersTable.getColumns().addAll(usernameCol, passwordCol, roleCol);
+        usersTable.setItems(users);
+
+        HBox buttons = new HBox(10);
+        
+        Button addBtn = new Button("➕ Add");
+        addBtn.setOnAction(e -> addNewUser());
+
+        Button deleteBtn = new Button("🗑 Delete");
+        deleteBtn.setOnAction(e -> deleteSelectedUser());
+
+        Button refreshBtn = new Button("🔄 Refresh");
+        refreshBtn.setOnAction(e -> loadUsersFromDb());
+
+        Button saveBtn = new Button("💾 Save All");
+        saveBtn.setOnAction(e -> saveAllUsers());
+
+        buttons.getChildren().addAll(addBtn, deleteBtn, refreshBtn, saveBtn);
+
+        root.getChildren().addAll(title, usersTable, buttons);
+        loadUsersFromDb();
+
+        return root;
+    }
+
+    private void addNewUser() {
+        Dialog<UserRow> dialog = new Dialog<>();
+        dialog.setTitle("Add User");
+
+        ButtonType addType = new ButtonType("Add", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(addType, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+
+        TextField usernameField = new TextField();
+        PasswordField passwordField = new PasswordField();
+        ComboBox<String> roleCombo = new ComboBox<>();
+        roleCombo.getItems().addAll("ADMIN", "CASHIER", "KITCHEN");
+        roleCombo.setValue("CASHIER");
+
+        grid.add(new Label("Username:"), 0, 0);
+        grid.add(usernameField, 1, 0);
+        grid.add(new Label("Password:"), 0, 1);
+        grid.add(passwordField, 1, 1);
+        grid.add(new Label("Role:"), 0, 2);
+        grid.add(roleCombo, 1, 2);
+
+        dialog.getDialogPane().setContent(grid);
+
+        dialog.setResultConverter(btn -> {
+            if (btn == addType) {
+                return new UserRow(usernameField.getText(), passwordField.getText(), roleCombo.getValue());
+            }
+            return null;
+        });
+
+        dialog.showAndWait().ifPresent(user -> {
+            users.add(user);
+            showInfo("Added", "User added to table");
+        });
+    }
+
+    private void deleteSelectedUser() {
+        UserRow selected = usersTable.getSelectionModel().getSelectedItem();
+        if (selected != null) {
+            users.remove(selected);
+            showInfo("Removed", "User removed from table");
+        }
+    }
+
+    private void loadUsersFromDb() {
+        users.clear();
+        try {
+            List<Users> userList = usersRepo.getAllUsers();
+            for (Users u : userList) {
+                users.add(new UserRow(u.getUsername(), u.getPassword(), u.getRole()));
+            }
+        } catch (SQLException ex) {
+            showError("Error", "Could not load users");
+        }
+    }
+
+    private void saveAllUsers() {
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Confirm");
+        confirm.setContentText("Replace all users in database?");
+        confirm.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.OK) {
+                try {
+                    List<Users> usersList = new ArrayList<>();
+                    for (UserRow row : users) {
+                        Users user;
+                        switch (row.getRole().toUpperCase()) {
+                            case "ADMIN":
+                                user = new Admin(row.getUsername(), row.getPassword());
+                                break;
+                            case "KITCHEN":
+                                user = new Kitchen(row.getUsername(), row.getPassword());
+                                break;
+                            default:
+                                user = new Cashier(row.getUsername(), row.getPassword());
+                        }
+                        usersList.add(user);
+                    }
+                    usersRepo.replaceUsers(usersList);
+                    showSuccess("Success", "Users saved!");
+                    loadUsersFromDb();
+                } catch (SQLException ex) {
+                    showError("Error", "Could not save users");
                 }
             }
         });
@@ -373,180 +485,121 @@ public class CoffeeShopDashboard {
         VBox root = new VBox(15);
         root.setPadding(new Insets(20));
 
-        Label sectionTitle = new Label("Sales Reports");
-        sectionTitle.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
+        Label title = new Label("Sales Reports");
+        title.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
 
-        // Period selection buttons
-        HBox controls = new HBox(12);
+        HBox controls = new HBox(10);
         Button dailyBtn = new Button("📅 Today");
-        Button weeklyBtn = new Button("📅 This Week");
-        Button monthlyBtn = new Button("📅 This Month");
-
-        dailyBtn.getStyleClass().add("logout-button");
-        weeklyBtn.getStyleClass().add("logout-button");
-        monthlyBtn.getStyleClass().add("logout-button");
-
-        dailyBtn.setStyle("-fx-pref-width: 120px; -fx-pref-height: 40px;");
-        weeklyBtn.setStyle("-fx-pref-width: 120px; -fx-pref-height: 40px;");
-        monthlyBtn.setStyle("-fx-pref-width: 120px; -fx-pref-height: 40px;");
-
+        Button weeklyBtn = new Button("📅 Week");
+        Button monthlyBtn = new Button("📅 Month");
         controls.getChildren().addAll(dailyBtn, weeklyBtn, monthlyBtn);
 
-        // Results display
-        Label resultLabel = new Label("Select a period to view sales reports");
-        resultLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+        Label resultLabel = new Label("Select period");
 
-        // Bills table
-        TableView<java.util.Map<String, Object>> billsTable = new TableView<>();
-        billsTable.setPrefHeight(400);
+        TableView<Map<String, Object>> billsTable = new TableView<>();
 
-        TableColumn<java.util.Map<String, Object>, String> idCol = new TableColumn<>("Bill ID");
-        idCol.setPrefWidth(150);
-        idCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(
-            String.valueOf(c.getValue().get("id"))));
+        TableColumn<Map<String, Object>, String> idCol = new TableColumn<>("Bill ID");
+        idCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(String.valueOf(c.getValue().get("id"))));
 
-        TableColumn<java.util.Map<String, Object>, String> dateCol = new TableColumn<>("Date & Time");
-        dateCol.setPrefWidth(200);
-        dateCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(
-            String.valueOf(c.getValue().get("bill_date"))));
+        TableColumn<Map<String, Object>, String> dateCol = new TableColumn<>("Date");
+        dateCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(String.valueOf(c.getValue().get("bill_date"))));
 
-        TableColumn<java.util.Map<String, Object>, String> totalCol = new TableColumn<>("Total (Rs)");
-        totalCol.setPrefWidth(150);
-        totalCol.setStyle("-fx-alignment: CENTER-RIGHT;");
-        totalCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(
-            String.format("%.2f", c.getValue().get("total"))));
+        TableColumn<Map<String, Object>, String> totalCol = new TableColumn<>("Total");
+        totalCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(String.format("%.2f", c.getValue().get("total"))));
 
         billsTable.getColumns().addAll(idCol, dateCol, totalCol);
 
-        // Double-click to view bill
-        billsTable.setOnMouseClicked(event -> {
-            if (event.getClickCount() == 2) {
-                java.util.Map<String, Object> selected = billsTable.getSelectionModel().getSelectedItem();
-                if (selected != null) {
-                    String billId = String.valueOf(selected.get("id"));
-                    showBillPopup(billId);
-                }
-            }
-        });
+        dailyBtn.setOnAction(e -> loadSales(billsTable, resultLabel, "daily"));
+        weeklyBtn.setOnAction(e -> loadSales(billsTable, resultLabel, "weekly"));
+        monthlyBtn.setOnAction(e -> loadSales(billsTable, resultLabel, "monthly"));
 
-        Label tipLabel = new Label("💡 Double-click on any bill to view details");
-        tipLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #666666; -fx-font-style: italic;");
-
-        // Button actions
-        dailyBtn.setOnAction(e -> {
-            LocalDate today = LocalDate.now();
-            LocalDateTime start = today.atStartOfDay();
-            LocalDateTime end = today.atTime(LocalTime.MAX);
-            List<java.util.Map<String, Object>> bills = queryBillsBetween(start, end);
-            double sum = bills.stream().mapToDouble(r -> ((Number) r.get("total")).doubleValue()).sum();
-            resultLabel.setText(String.format("Today's Sales: Rs %.2f (%d bills)", sum, bills.size()));
-            billsTable.getItems().setAll(bills);
-        });
-
-        weeklyBtn.setOnAction(e -> {
-            LocalDate today = LocalDate.now();
-            LocalDateTime start = today.minusDays(6).atStartOfDay();
-            LocalDateTime end = today.atTime(LocalTime.MAX);
-            List<java.util.Map<String, Object>> bills = queryBillsBetween(start, end);
-            double sum = bills.stream().mapToDouble(r -> ((Number) r.get("total")).doubleValue()).sum();
-            resultLabel.setText(String.format("Last 7 Days Sales: Rs %.2f (%d bills)", sum, bills.size()));
-            billsTable.getItems().setAll(bills);
-        });
-
-        monthlyBtn.setOnAction(e -> {
-            LocalDate today = LocalDate.now();
-            LocalDate first = today.withDayOfMonth(1);
-            LocalDateTime start = first.atStartOfDay();
-            LocalDateTime end = today.atTime(LocalTime.MAX);
-            List<java.util.Map<String, Object>> bills = queryBillsBetween(start, end);
-            double sum = bills.stream().mapToDouble(r -> ((Number) r.get("total")).doubleValue()).sum();
-            resultLabel.setText(String.format("This Month's Sales: Rs %.2f (%d bills)", sum, bills.size()));
-            billsTable.getItems().setAll(bills);
-        });
-
-        root.getChildren().addAll(sectionTitle, controls, resultLabel, billsTable, tipLabel);
+        root.getChildren().addAll(title, controls, resultLabel, billsTable);
         return root;
     }
 
-    // Database Methods
+    private void loadSales(TableView<Map<String, Object>> table, Label label, String period) {
+        LocalDateTime start, end;
+        LocalDate today = LocalDate.now();
+        
+        if ("daily".equals(period)) {
+            start = today.atStartOfDay();
+            end = today.atTime(LocalTime.MAX);
+        } else if ("weekly".equals(period)) {
+            start = today.minusDays(6).atStartOfDay();
+            end = today.atTime(LocalTime.MAX);
+        } else {
+            start = today.withDayOfMonth(1).atStartOfDay();
+            end = today.atTime(LocalTime.MAX);
+        }
+
+        List<Map<String, Object>> bills = queryBills(start, end);
+        double total = bills.stream().mapToDouble(b -> ((Number) b.get("total")).doubleValue()).sum();
+        label.setText(String.format("%s: Rs %.2f (%d bills)", period, total, bills.size()));
+        table.getItems().setAll(bills);
+    }
 
     private Connection getConnection() throws SQLException {
         try {
             Class.forName("com.mysql.cj.jdbc.Driver");
             return DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
         } catch (ClassNotFoundException e) {
-            throw new SQLException("MySQL Driver not found!", e);
+            throw new SQLException("MySQL Driver not found!");
         }
     }
 
     private void loadItemsFromDb() {
         items.clear();
         try (Connection conn = getConnection()) {
-            String sql = "SELECT id, fName, fPrice FROM food ORDER BY fName";
+            String sql = "SELECT id, fName, fPrice, image_path, available, category FROM food ORDER BY fName";
             try (PreparedStatement ps = conn.prepareStatement(sql);
                  ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     items.add(new FoodItem(
                         rs.getInt("id"),
                         rs.getString("fName"),
-                        rs.getDouble("fPrice")
+                        rs.getDouble("fPrice"),
+                        rs.getString("image_path"),
+                        rs.getBoolean("available"),
+                        rs.getString("category")
                     ));
                 }
             }
         } catch (SQLException ex) {
-            ex.printStackTrace();
-            showError("Database Error", "Could not load items: " + ex.getMessage());
+            showError("Error", "Could not load items");
         }
     }
 
-    private boolean addFoodToDb(String name, double price) {
+    private boolean addFoodToDb(String name, double price, String imagePath, String category, boolean available) {
         try (Connection conn = getConnection()) {
-            String sql = "INSERT INTO food (fName, fPrice) VALUES (?, ?)";
+            String sql = "INSERT INTO food (fName, fPrice, image_path, category, available) VALUES (?, ?, ?, ?, ?)";
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setString(1, name);
                 ps.setDouble(2, price);
-                int rows = ps.executeUpdate();
-                return rows > 0;
+                ps.setString(3, imagePath);
+                ps.setString(4, category);
+                ps.setBoolean(5, available);
+                return ps.executeUpdate() > 0;
             }
         } catch (SQLException ex) {
-            ex.printStackTrace();
-            showError("Database Error", "Could not add item: " + ex.getMessage());
+            showError("Error", "Could not add item");
             return false;
         }
     }
 
-    private void updateFoodInDb(FoodItem item) {
+    private void deleteFoodFromDb(int id) {
         try (Connection conn = getConnection()) {
-            String sql = "UPDATE food SET fName = ?, fPrice = ? WHERE id = ?";
+            String sql = "DELETE FROM food WHERE id=?";
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setString(1, item.getName());
-                ps.setDouble(2, item.getPrice());
-                ps.setInt(3, item.getId());
+                ps.setInt(1, id);
                 ps.executeUpdate();
             }
         } catch (SQLException ex) {
-            ex.printStackTrace();
-            showError("Database Error", "Could not update item: " + ex.getMessage());
+            showError("Error", "Could not delete");
         }
     }
 
-    private boolean deleteFoodFromDb(int id) {
-        try (Connection conn = getConnection()) {
-            String sql = "DELETE FROM food WHERE id = ?";
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setInt(1, id);
-                int rows = ps.executeUpdate();
-                return rows > 0;
-            }
-        } catch (SQLException ex) {
-            ex.printStackTrace();
-            showError("Database Error", "Could not delete item: " + ex.getMessage());
-            return false;
-        }
-    }
-
-    private List<java.util.Map<String, Object>> queryBillsBetween(LocalDateTime start, LocalDateTime end) {
-        List<java.util.Map<String, Object>> bills = new ArrayList<>();
+    private List<Map<String, Object>> queryBills(LocalDateTime start, LocalDateTime end) {
+        List<Map<String, Object>> bills = new ArrayList<>();
         try (Connection conn = getConnection()) {
             String sql = "SELECT id, bill_date, total FROM bills WHERE bill_date BETWEEN ? AND ? ORDER BY bill_date DESC";
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -554,7 +607,7 @@ public class CoffeeShopDashboard {
                 ps.setTimestamp(2, Timestamp.valueOf(end));
                 try (ResultSet rs = ps.executeQuery()) {
                     while (rs.next()) {
-                        java.util.Map<String, Object> bill = new java.util.HashMap<>();
+                        Map<String, Object> bill = new HashMap<>();
                         bill.put("id", rs.getString("id"));
                         bill.put("bill_date", rs.getTimestamp("bill_date").toString());
                         bill.put("total", rs.getDouble("total"));
@@ -568,92 +621,32 @@ public class CoffeeShopDashboard {
         return bills;
     }
 
-    private void showBillPopup(String billId) {
-        File billFile = new File("ebills/bill_" + billId + ".txt");
-        if (!billFile.exists()) {
-            showError("Bill Not Found", "E-bill file not found for: " + billId);
-            return;
-        }
-
-        try {
-            String content = new String(Files.readAllBytes(billFile.toPath()), StandardCharsets.UTF_8);
-
-            Stage popup = new Stage();
-            popup.initOwner(primaryStage);
-            popup.initModality(Modality.APPLICATION_MODAL);
-            popup.setTitle("E-Bill: " + billId);
-
-            TextArea textArea = new TextArea(content);
-            textArea.setEditable(false);
-            textArea.setWrapText(true);
-            textArea.setPrefSize(600, 500);
-            textArea.setStyle("-fx-font-family: 'Courier New', monospace; -fx-font-size: 13px;");
-
-            Button printBtn = new Button("🖨 Print");
-            printBtn.getStyleClass().add("logout-button");
-            printBtn.setOnAction(e -> {
-                PrinterJob job = PrinterJob.createPrinterJob();
-                if (job != null && job.showPrintDialog(popup)) {
-                    if (job.printPage(textArea)) {
-                        job.endJob();
-                    }
-                }
-            });
-
-            Button closeBtn = new Button("Close");
-            closeBtn.getStyleClass().add("nav-link");
-            closeBtn.setOnAction(e -> popup.close());
-
-            HBox buttons = new HBox(10, printBtn, closeBtn);
-            buttons.setAlignment(Pos.CENTER_RIGHT);
-            buttons.setPadding(new Insets(10));
-
-            VBox layout = new VBox(10, textArea, buttons);
-            layout.setPadding(new Insets(15));
-
-            Scene scene = new Scene(layout);
-            loadCSS(scene);
-            popup.setScene(scene);
-            popup.show();
-
-        } catch (Exception ex) {
-            ex.printStackTrace();
-            showError("Error", "Could not read bill file: " + ex.getMessage());
-        }
-    }
-
     private void loadCSS(Scene scene) {
         try {
             String css = getClass().getResource("/dashboard.css").toExternalForm();
             scene.getStylesheets().add(css);
         } catch (Exception ex) {
-            System.err.println("CSS not found: " + ex.getMessage());
+            System.err.println("CSS not found");
         }
     }
 
     private void showError(String title, String message) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.initOwner(primaryStage);
         alert.setTitle(title);
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
-    }
-
-    private void showInfo(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.initOwner(primaryStage);
-        alert.setTitle(title);
-        alert.setHeaderText(null);
         alert.setContentText(message);
         alert.showAndWait();
     }
 
     private void showSuccess(String title, String message) {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.initOwner(primaryStage);
         alert.setTitle(title);
-        alert.setHeaderText("✓ " + title);
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+
+    private void showInfo(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(title);
         alert.setContentText(message);
         alert.showAndWait();
     }
