@@ -1,0 +1,458 @@
+/* --- Color Variables from Design Guide --- */
+.root {
+    /* --- Coffee Palette --- */
+    -pos-dark-brown: #3b231c;   /* Darker coffee brown */
+    -pos-primary: #6f4e37;      /* Primary brand/mocha */
+    -pos-accent: #c89b7b;       /* Accents/hover */
+    -pos-cream: #f6efe8;        /* Cream background */
+    -pos-mocha: #b08976;        /* Mocha tones for cards */
+    
+    /* Text/Background */
+    -pos-bg-light: #F8F9FA;     /* Page Background */
+    -pos-text-dark: #333333;
+    -pos-text-light: #666666;
+    -pos-white: #FFFFFF;
+    
+    /* Font */
+    -fx-font-family: "Poppins", "Inter", "Arial";
+    font-family: "Poppins", "Inter", "Arial";
+    -fx-font-size: 14px;
+    font-size: 14px;
+}
+
+/* --- Global Styles --- */
+
+.scroll-pane {
+    -fx-background-color: -pos-bg-light;
+    background-color: -pos-bg-light;
+    -fx-border-color: transparent;
+    border-color: transparent;
+}
+
+/* --- Sidebar Styling --- */
+.sidebar {
+    -fx-background-image: url('/images/wood_texture.jpg');
+    -fx-background-size: cover;
+    -fx-background-repeat: no-repeat;
+    -fx-background-position: center center;
+    -fx-background-color: linear-gradient(to bottom, rgba(59,35,28,0.98), rgba(49,30,25,0.98));
+    background-color: -pos-dark-brown;
+    -fx-padding: 0;
+    padding: 0;
+    -fx-spacing: 0;
+}
+
+.logo {
+    -fx-text-fill: -pos-white;
+    color: -pos-white;
+}
+
+.nav-link {
+    -fx-background-color: rgba(200, 155, 123, 0.2);
+    background-color: transparent;
+    -fx-text-fill: -pos-white;
+    color: -pos-white;
+    -fx-font-size: 16px;
+    font-size: 16px;
+    -fx-alignment: center-left;
+    text-align: left;
+    -fx-pref-height: 40px;
+    min-height: 40px;
+    -fx-padding: 10 20;
+    padding: 10px 20px;
+    -fx-cursor: hand;
+    cursor: pointer;
+    -fx-border-radius: 0 5px 5px 0; /* Rounded on right side */
+    border-radius: 0 5px 5px 0;
+    -fx-background-radius: 0 5px 5px 0;
+}
+
+
+.nav-link:hover {
+    -fx-background-color: rgba(200, 155, 123, 1); /* Semi-transparent Accent */
+    background-color: rgba(200, 155, 123, 0.2);
+}
+
+/* Menu header for cashier left column */
+.menu-header {
+    -fx-font-size: 16px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #000000; /* black */
+    color: #000000;
+    -fx-padding: 6px 6px 8px 6px;
+    -fx-letter-spacing: 0.3px;
+    -fx-alignment: center; /* center the label horizontally */
+    -fx-text-alignment: center;
+}
+
+
+/* Style for the currently selected link */
+.nav-link.active {
+    -fx-background-color: rgba(200, 155, 123, 0.2);
+    background-color: -pos-accent;
+    -fx-font-weight: bold;
+    font-weight: bold;
+    -fx-text-fill: -pos-dark-brown;
+    color: -pos-dark-brown;
+}
+
+.logout-button {
+    -fx-background-color: -pos-primary;
+    background-color: -pos-primary;
+    -fx-text-fill: -pos-white;
+    color: -pos-white;
+    -fx-font-weight: bold;
+    font-weight: bold;
+    -fx-padding: 10 20;
+    padding: 10px 20px;
+    -fx-background-radius: 5px;
+    border-radius: 5px;
+    -fx-cursor: hand;
+    cursor: pointer;
+}
+
+.logout-button:hover {
+    -fx-background-color: derive(-pos-primary, -10%);
+    background-color: derive(-pos-primary, -10%);
+}
+
+
+/* --- Top Bar Styling --- */
+.top-bar {
+    -fx-background-color: -pos-white;
+    background-color: -pos-white;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 4, 0, 0, 1); /* Subtle Shadow */
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    -fx-min-height: 60px;
+    min-height: 60px;
+    -fx-border-color: transparent;
+    border-color: transparent;
+}
+
+.page-title {
+    -fx-font-weight: bold;
+    font-weight: bold;
+    -fx-text-fill: -pos-text-dark;
+    color: -pos-text-dark;
+}
+
+
+/* --- Main Content Area Styling --- */
+.main-content-area {
+    -fx-background-color: -pos-cream;
+    background-color: -pos-cream;
+}
+
+/* Statistic Cards */
+.stat-card {
+    -fx-background-color: -pos-cream;
+    background-color: -pos-cream;
+    -fx-background-radius: 8px;
+    border-radius: 8px;
+    -fx-border-color: rgba(0,0,0,0.05);
+    border-color: rgba(0,0,0,0.05);
+    -fx-border-width: 1px;
+    border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-padding: 20px;
+    padding: 20px;
+}
+.stat-card {
+    -fx-min-width: 360px; /* ensure stat panels like rightBox are comfortable */
+}
+
+.card-title {
+    -fx-font-size: 14px;
+    font-size: 14px;
+    -fx-text-fill: -pos-text-light;
+    color: -pos-text-light;
+}
+
+.card-data {
+    -fx-font-size: 30px;
+    font-size: 28px;
+    -fx-font-weight: bold;
+    font-weight: bold;
+    -fx-text-fill: -pos-text-dark;
+    color: -pos-text-dark;
+    -fx-text-alignment: right;
+    -fx-alignment: center-right;
+}
+
+/* Chart Placeholders */
+.chart-box {
+    -fx-background-color: -pos-cream;
+    background-color: -pos-cream;
+    -fx-background-radius: 8px;
+    border-radius: 8px;
+    -fx-border-color: rgba(0,0,0,0.05);
+    border-color: rgba(0,0,0,0.05);
+    border-color: rgba(0,0,0,0.05);
+    -fx-border-width: 1px;
+    border-width: 1px;
+    -fx-border-radius: 8px;
+}
+
+.chart-title {
+    -fx-font-weight: bold;
+    font-weight: bold;
+    -fx-text-fill: -pos-text-dark;
+    color: -pos-text-dark;
+    -fx-font-size: 18px;
+    font-size: 18px;
+}
+
+.chart-region-placeholder {
+    -fx-background-color: #E0E0E0; /* Grey fill to show where chart goes */
+    background-color: #E0E0E0; /* Grey fill to show where chart goes */
+    -fx-background-radius: 5px;
+}
+
+/* --- Login Page Styling --- */
+.login-container {
+    -fx-background-color: -pos-bg-light;
+    background-color: -pos-bg-light;
+    -fx-alignment: center;
+    -fx-spacing: 20;
+    -fx-padding: 40;
+}
+
+.login-title {
+    -fx-font-size: 28px;
+    font-size: 28px;
+    -fx-font-weight: bold;
+    font-weight: bold;
+    -fx-text-fill: -pos-dark-brown;
+    color: -pos-dark-brown;
+}
+
+.login-label {
+    -fx-font-size: 14px;
+    font-size: 14px;
+    -fx-text-fill: -pos-text-dark;
+    color: -pos-text-dark;
+    -fx-font-weight: bold;
+    font-weight: bold;
+}
+
+.login-field {
+    -fx-padding: 10px;
+    padding: 10px;
+    -fx-font-size: 14px;
+    font-size: 14px;
+    -fx-border-radius: 5px;
+    border-radius: 5px;
+    -fx-border-color: #DDD;
+    border-color: #DDD;
+    -fx-border-width: 1px;
+    border-width: 1px;
+    -fx-background-color: -pos-white;
+    background-color: -pos-white;
+}
+
+.login-field:focused {
+    -fx-border-color: -pos-primary;
+    border-color: -pos-primary;
+    -fx-border-width: 2px;
+    border-width: 2px;
+}
+
+.login-button {
+    -fx-background-color: -pos-primary;
+    background-color: -pos-primary;
+    -fx-text-fill: -pos-white;
+    color: -pos-white;
+    -fx-font-size: 14px;
+    font-size: 14px;
+    -fx-font-weight: bold;
+    font-weight: bold;
+    -fx-background-radius: 5px;
+    border-radius: 5px;
+    -fx-cursor: hand;
+    cursor: pointer;
+    -fx-padding: 10px 20px;
+    padding: 10px 20px;
+}
+
+.login-button:hover {
+    -fx-background-color: derive(-pos-primary, -10%);
+    background-color: derive(-pos-primary, -10%);
+}
+
+/* Kitchen dashboard styles */
+.filter-button {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 6px 10px;
+}
+
+.filter-button:selected {
+    -fx-background-color: -pos-accent;
+    -fx-text-fill: -pos-dark-brown;
+    -fx-border-radius: 6px;
+    -fx-background-radius: 6px;
+}
+
+/* Item cards in cashier menu */
+.item-card {
+    /* Card style for menu items in the cashier (tile view) */
+    -fx-background-color: -pos-cream; /* warm cream card */
+    background-color: -pos-cream;
+    -fx-text-fill: -pos-dark-brown; /* ensure readable text */
+    color: -pos-dark-brown;
+    -fx-background-radius: 8px;
+    -fx-padding: 10px 14px;
+    padding: 10px 14px;
+    -fx-border-color: rgba(79,57,48,0.12);
+    border-color: rgba(79,57,48,0.12);
+    -fx-border-width: 1px;
+    border-width: 1px;
+    -fx-border-radius: 8px;
+    border-radius: 8px;
+    -fx-font-weight: 700;
+    font-weight: 700;
+    -fx-alignment: center;
+    -fx-text-alignment: center;
+    -fx-pref-width: 140px;
+    -fx-pref-height: 72px;
+}
+.item-card:hover {
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.12), 12, 0, 0, 4);
+    -fx-cursor: hand;
+    -fx-background-color: -pos-mocha; /* mocha hover */
+    -fx-text-fill: -pos-white;
+    color: -pos-white;
+    -fx-scale-x: 1.02;
+    -fx-scale-y: 1.02;
+}
+
+/* Tile name and price styles */
+.item-card .item-name {
+    -fx-font-size: 14px;
+    -fx-text-fill: #000000; /* menu item name text color: pure black */
+    color: #000000;
+    -fx-font-weight: bold;
+}
+.item-card .item-price {
+    -fx-font-size: 12px;
+    -fx-text-fill: -pos-mocha;
+    color: -pos-mocha;
+}
+.item-card:hover .item-name,
+.item-card:focused .item-name,
+.item-card:pressed .item-name {
+    -fx-text-fill: -pos-white; /* keep text readable on hover/focus */
+    color: -pos-white;
+}
+.item-card .item-image {
+    -fx-fit-width: 64px;
+    -fx-fit-height: 40px;
+    -fx-preserve-ratio: true;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.12), 6, 0, 0, 2);
+    -fx-background-radius: 6px;
+    -fx-border-radius: 6px;
+}
+
+.item-icon {
+    -fx-font-size: 20px;
+    -fx-text-fill: -pos-mocha;
+    color: -pos-mocha;
+    -fx-padding: 0 6px 0 0;
+}
+
+/* Remove selected button - dark style */
+.remove-button {
+    -fx-background-color: -pos-dark-brown;
+    -fx-text-fill: -pos-white;
+    color: -pos-white;
+    -fx-font-weight: bold;
+    -fx-background-radius: 6px;
+    -fx-padding: 6px 12px;
+}
+.remove-button:hover {
+    -fx-background-color: derive(-pos-dark-brown, -10%);
+    -fx-text-fill: -pos-white;
+}
+.item-card:hover .item-icon { -fx-text-fill: -pos-white; color: -pos-white; }
+
+/* Slightly different look for the left menu area to feel like a card */
+.sidebar {
+    -fx-background-color: linear-gradient(to bottom, rgba(110, 77, 59, 0.95), rgba(90, 62, 45, 0.95));
+    -fx-padding: 12px;
+}
+
+/* Large pay / checkout button */
+.pay-button {
+    -fx-background-color: #388E3C; /* green */
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 8px;
+    -fx-padding: 12px 16px;
+}
+.pay-button:hover { -fx-background-color: derive(#388E3C, -10%); }
+
+/* Menu search field */
+.login-field {
+    -fx-padding: 8px;
+    -fx-background-radius: 6px;
+}
+
+.status-pending {
+    -fx-background-color: #FFF176; /* yellow */
+    -fx-text-fill: #3E2723;
+    -fx-font-weight: bold;
+    -fx-background-radius: 8px;
+    -fx-padding: 4px 8px;
+}
+
+.status-completed {
+    -fx-background-color: #A5D6A7; /* green */
+    -fx-text-fill: #1B5E20;
+    -fx-font-weight: bold;
+    -fx-background-radius: 8px;
+    -fx-padding: 4px 8px;
+}
+
+.status-mixed {
+    -fx-background-color: #B3E5FC; /* light blue */
+    -fx-text-fill: #01579B;
+    -fx-font-weight: bold;
+    -fx-background-radius: 8px;
+    -fx-padding: 4px 8px;
+}
+
+/* Row background colors for quick scanning */
+.row-pending {
+    -fx-background-color: rgba(255, 235, 59, 0.1);
+}
+.row-completed {
+    -fx-background-color: rgba(76, 175, 80, 0.08);
+}
+.row-mixed {
+    -fx-background-color: rgba(3, 169, 244, 0.06);
+}
+
+.row-picked {
+    -fx-border-color: rgba(255, 152, 0, 0.8);
+    -fx-border-width: 2px 0 2px 0;
+    -fx-background-color: rgba(255, 152, 0, 0.06);
+}
+
+.new-order {
+    -fx-effect: dropshadow(gaussian, rgba(255, 193, 7, 0.7), 12, 0, 0, 0);
+}
+
+.page-title {
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+}
+
+.row-pending {
+    -fx-background-color: rgba(255,235,59,0.12);
+}
+
+.row-completed {
+    -fx-background-color: rgba(165,214,167,0.08);
+    -fx-opacity: 0.9;
+}

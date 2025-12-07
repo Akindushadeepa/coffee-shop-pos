@@ -1,0 +1,12 @@
+BILL ID: 251127_1
+COFFEE SHOP - E-BILL
+Date: 2025-11-27 17:15:36
+Cashier: cashier
+-----------------------------------------------
+Item                             Qty       Unit      Total
+-----------------------------------------------
+Americano                          1     300.00     300.00
+-----------------------------------------------
+                                   GRAND TOTAL:     300.00
+
+Thank you for your purchase!

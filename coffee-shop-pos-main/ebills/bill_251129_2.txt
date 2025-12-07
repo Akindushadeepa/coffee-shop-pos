@@ -1,0 +1,13 @@
+BILL ID: 251129_2
+COFFEE SHOP - E-BILL
+Date: 2025-11-29 17:48:54
+Cashier: cashier
+-----------------------------------------------
+Item                             Qty       Unit      Total
+-----------------------------------------------
+Espresso                           1     250.00     250.00
+Latte                              1     400.00     400.00
+-----------------------------------------------
+                                   GRAND TOTAL:     650.00
+
+Thank you for your purchase!

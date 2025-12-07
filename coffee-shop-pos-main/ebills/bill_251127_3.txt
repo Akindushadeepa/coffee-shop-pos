@@ -1,0 +1,18 @@
+BILL ID: 251127_3
+COFFEE SHOP - E-BILL
+Date: 2025-11-27 20:44:40
+Table: 5
+Cashier: cashier
+-----------------------------------------------
+Item                             Qty       Unit      Total
+-----------------------------------------------
+Americano                          1     300.00     300.00
+Mocha                              1     450.00     450.00
+Hot Chocolate                      1     350.00     350.00
+Iced Coffee                        1     400.00     400.00
+Sandwich                           1     450.00     450.00
+Green Tea                          1     300.00     300.00
+-----------------------------------------------
+                                   GRAND TOTAL:    2250.00
+
+Thank you for your purchase!
